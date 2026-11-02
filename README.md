@@ -17,13 +17,13 @@ Python files use the standard-library AST parser. JavaScript and TypeScript use 
 
 ## Upload and analysis limits
 
-- Maximum compressed upload: 15 MB.
-- Maximum expanded file content: 80 MB.
+- Maximum compressed upload: 50 MB.
+- Maximum expanded file content: 150 MB.
 - Maximum files: 2,500.
 - Maximum individual source file analyzed: 256 KB.
 - Maximum total source bytes analyzed per archive: 5 MB.
-- Supported source extensions: Python, JavaScript, and TypeScript variants.
-- Unsafe paths and symbolic links are rejected; common generated folders are excluded.
+- Supported source extensions: GDScript, Python, JavaScript, and TypeScript variants. Godot scene, resource, shader, and project config files are inventoried.
+- Unsafe paths and symbolic links are rejected; common generated folders, including Godot's `.godot` cache, are excluded.
 
 ## Privacy and safety
 
