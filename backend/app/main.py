@@ -72,7 +72,12 @@ def _python_insights(source: str) -> dict:
         elif isinstance(node, ast.Import):
             imports.extend(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom):
-            imports.append("." * (node.level or 0) + (node.module or ""))
+            base = "." * (node.level or 0) + (node.module or "")
+            if base:
+                imports.append(base)
+            for alias in node.names:
+                if alias.name != "*":
+                    imports.append(base + ("." if base and not base.endswith(".") else "") + alias.name)
         if isinstance(node, branch_nodes):
             complexity += 1
     return {"status": "analyzed", "functions": functions, "classes": classes, "imports": sorted(set(x for x in imports if x)), "lines": len(source.splitlines()), "complexity_estimate": complexity, "parser": "Python AST"}
