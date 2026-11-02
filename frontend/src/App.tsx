@@ -1,4 +1,48 @@
+import { useEffect, useState } from "react";
+
+type ApiState = "checking" | "online" | "offline";
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 function App() {
+  const [apiState, setApiState] = useState<ApiState>("checking");
+
+  useEffect(() => {
+    let active = true;
+
+    async function checkApi() {
+      if (!API_BASE_URL) {
+        if (active) setApiState("offline");
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/health`);
+        if (!response.ok) throw new Error("API health check failed");
+
+        const data: { status?: string; service?: string } = await response.json();
+        if (data.status !== "ok" || data.service !== "orbit-api") {
+          throw new Error("Unexpected API response");
+        }
+
+        if (active) setApiState("online");
+      } catch {
+        if (active) setApiState("offline");
+      }
+    }
+
+    checkApi();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const statusLabel = {
+    checking: "Checking API connection…",
+    online: "Backend connected · API operational",
+    offline: "Backend connection unavailable",
+  }[apiState];
+
   return (
     <main className="shell">
       <header className="topbar">
@@ -16,9 +60,9 @@ function App() {
           ORBIT will map project structure, identify languages, and surface
           useful engineering insights — without executing your code.
         </p>
-        <div className="status">
+        <div className={`status status-${apiState}`} role="status" aria-live="polite">
           <span className="status-dot" />
-          Initial development environment
+          {statusLabel}
         </div>
       </section>
 
