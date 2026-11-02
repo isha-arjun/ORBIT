@@ -14,10 +14,11 @@ Supabase PostgreSQL is planned for a later persistence milestone. It is not curr
 4. The API validates the archive and inspects metadata in memory.
 5. Supported Python, JavaScript, and TypeScript files are read in memory within per-file and per-archive source-byte limits.
 6. Python is parsed with the standard-library AST. JavaScript/TypeScript declarations and imports are identified with a bounded heuristic scanner.
-7. The API returns project inventory, language statistics, and per-file code insights.
-8. The frontend renders the explorer and selected-file structure.
+7. The API resolves supported imports against paths in the uploaded archive and returns a best-effort internal dependency graph.
+8. The API returns project inventory, language statistics, per-file code insights, and dependency edges.
+9. The frontend renders the explorer, selected-file structure, and incoming/outgoing dependency relationships.
 
-The analyzer never extracts project files to disk or executes uploaded code. It does not use an external AI service. JavaScript/TypeScript symbol detection is heuristic; results are not compiler-grade parsing. Python complexity is a basic branch-node estimate, not a formal maintainability metric.
+The analyzer never extracts project files to disk or executes uploaded code. It does not use an external AI service. JavaScript/TypeScript symbol detection is heuristic; results are not compiler-grade parsing. Dependency mapping resolves only supported static imports that match files in the archive; it does not represent external packages, dynamic imports, runtime references, or every alias convention. Python complexity is a basic branch-node estimate, not a formal maintainability metric.
 
 ## Upload and analysis safeguards
 
