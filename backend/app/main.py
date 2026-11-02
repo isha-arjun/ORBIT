@@ -297,8 +297,8 @@ async def analyze_upload(file: UploadFile = File(...)) -> dict:
             "code_insights": {
                 "summary": {"files_analyzed": totals["files_analyzed"], "functions_found": totals["functions"], "classes_found": totals["classes"], "imports_found": totals["imports"], "source_files_skipped_or_over_limit": max(0, supported_count - len(code_insights))},
                 "files": code_insights,
-                "supported_languages": ["Python", "JavaScript", "TypeScript"],
-                "limits": {"max_source_file_bytes": MAX_SOURCE_FILE_BYTES, "max_total_source_bytes": MAX_SOURCE_ANALYSIS_BYTES},
+                "supported_languages": ["GDScript", "Python", "JavaScript", "TypeScript"],
+                "limits": {"max_upload_bytes": MAX_UPLOAD_BYTES, "max_uncompressed_bytes": MAX_UNCOMPRESSED_BYTES, "max_source_file_bytes": MAX_SOURCE_FILE_BYTES, "max_total_source_bytes": MAX_SOURCE_ANALYSIS_BYTES},
                 "dependency_graph": dependency_graph,
             },
             "safety": {"source_executed": False, "source_contents_read": True, "analysis_mode": "static", "note": "ORBIT read supported source files in memory for static structure analysis. It did not execute code or intentionally store source contents."},
