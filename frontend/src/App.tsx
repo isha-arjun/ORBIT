@@ -9,6 +9,30 @@ type ProjectFile = {
   language: string;
   size_bytes: number;
 };
+type SymbolItem = { name: string; line: number; kind?: string };
+type FileInsight = {
+  path: string;
+  status: string;
+  error?: string;
+  reason?: string;
+  functions?: SymbolItem[];
+  classes?: SymbolItem[];
+  imports?: string[];
+  lines?: number;
+  complexity_estimate?: number | null;
+  parser?: string;
+};
+type CodeInsights = {
+  summary: {
+    files_analyzed: number;
+    functions_found: number;
+    classes_found: number;
+    imports_found: number;
+    source_files_skipped_or_over_limit: number;
+  };
+  files: FileInsight[];
+  supported_languages: string[];
+};
 type AnalysisResult = {
   project_name: string;
   summary: {
@@ -20,6 +44,7 @@ type AnalysisResult = {
   languages: LanguageStat[];
   folders: string[];
   files: ProjectFile[];
+  code_insights: CodeInsights;
   safety: {
     source_executed: boolean;
     source_contents_read: boolean;
@@ -143,6 +168,11 @@ function App() {
       return matchesSearch && matchesLanguage && matchesFolder;
     });
   }, [analysis, searchQuery, languageFilter, selectedFolder]);
+
+  const selectedCodeInsight = useMemo(
+    () => analysis?.code_insights.files.find((item) => item.path === selectedFile?.path) || null,
+    [analysis, selectedFile],
+  );
 
   const statusLabel = {
     checking: "Checking API connection…",
@@ -273,7 +303,53 @@ function App() {
                 <div className="detail-content"><span className="detail-kicker">SELECTED FILE</span><strong>{selectedFile.name}</strong><code>{selectedFile.path}</code></div>
                 <div className="detail-meta"><span>{selectedFile.language}</span><span>{selectedFile.extension || "No extension"}</span><span>{formatBytes(selectedFile.size_bytes)}</span></div>
               </div>}
-              <p className="explorer-footnote">File contents are not displayed or read in this inventory view. This explorer uses archive metadata only.</p>
+              <p className="explorer-footnote">Select a source file to see its detected structure. Source text is analyzed in memory and is not shown in the explorer.</p>
+            </section>
+
+            <section className="code-insights-panel">
+              <div className="explorer-heading">
+                <div><p className="eyebrow">STATIC ANALYSIS</p><h4>Code intelligence</h4></div>
+                <span className="explorer-count">{analysis.code_insights.summary.files_analyzed} source files analyzed</span>
+              </div>
+              <div className="insight-metrics">
+                <div><strong>{analysis.code_insights.summary.functions_found}</strong><span>Functions</span></div>
+                <div><strong>{analysis.code_insights.summary.classes_found}</strong><span>Classes</span></div>
+                <div><strong>{analysis.code_insights.summary.imports_found}</strong><span>Imports</span></div>
+                <div><strong>{analysis.code_insights.summary.source_files_skipped_or_over_limit}</strong><span>Skipped</span></div>
+              </div>
+              {selectedCodeInsight ? (
+                <div className="symbol-browser">
+                  <div className="symbol-heading">
+                    <div><span className="detail-kicker">FILE STRUCTURE</span><strong>{selectedCodeInsight.path}</strong></div>
+                    <span className={selectedCodeInsight.status === "analyzed" ? "analysis-status" : "analysis-status muted"}>{selectedCodeInsight.status.replace("_", " ")}</span>
+                  </div>
+                  {selectedCodeInsight.status === "analyzed" ? (
+                    <>
+                      <div className="symbol-groups">
+                        <div className="symbol-group">
+                          <h5>Functions <span>{selectedCodeInsight.functions?.length || 0}</span></h5>
+                          {selectedCodeInsight.functions?.length ? selectedCodeInsight.functions.map((symbol, index) => (
+                            <div className="symbol-row" key={symbol.name + symbol.line + index}><span className="symbol-kind">{symbol.kind || "function"}</span><strong>{symbol.name}()</strong><small>Line {symbol.line}</small></div>
+                          )) : <p className="symbol-empty">No functions detected.</p>}
+                        </div>
+                        <div className="symbol-group">
+                          <h5>Classes <span>{selectedCodeInsight.classes?.length || 0}</span></h5>
+                          {selectedCodeInsight.classes?.length ? selectedCodeInsight.classes.map((symbol, index) => (
+                            <div className="symbol-row" key={symbol.name + symbol.line + index}><span className="symbol-kind">class</span><strong>{symbol.name}</strong><small>Line {symbol.line}</small></div>
+                          )) : <p className="symbol-empty">No classes detected.</p>}
+                        </div>
+                      </div>
+                      <div className="imports-block"><h5>Imports <span>{selectedCodeInsight.imports?.length || 0}</span></h5>
+                        {selectedCodeInsight.imports?.length ? <div className="import-chips">{selectedCodeInsight.imports.map((item) => <code key={item}>{item}</code>)}</div> : <p className="symbol-empty">No imports detected.</p>}
+                      </div>
+                      <div className="analysis-footline"><span>{selectedCodeInsight.lines || 0} lines</span><span>{selectedCodeInsight.parser}</span>{selectedCodeInsight.complexity_estimate !== null && selectedCodeInsight.complexity_estimate !== undefined && <span>Branch estimate: {selectedCodeInsight.complexity_estimate}</span>}</div>
+                    </>
+                  ) : <p className="symbol-empty">{selectedCodeInsight.error || selectedCodeInsight.reason || "This file could not be analyzed."}</p>}
+                </div>
+              ) : (
+                <p className="insight-empty">Select a supported Python, JavaScript, or TypeScript file in the explorer to inspect its functions, classes, and imports. Supported parsers: {analysis.code_insights.supported_languages.join(", ")}.</p>
+              )}
+              <p className="explorer-footnote">Static analysis is best-effort. JavaScript and TypeScript symbols are detected heuristically; this is not a full compiler or security audit.</p>
             </section>
 
             <p className="safety-note">✓ {analysis.safety.note}</p>
@@ -284,7 +360,7 @@ function App() {
       <section className="feature-grid" aria-label="ORBIT capabilities">
         <article className="feature-card"><span className="feature-number">01</span><h2>Project explorer</h2><p>Search, filter, and navigate folders and files in an interactive workspace.</p></article>
         <article className="feature-card"><span className="feature-number">02</span><h2>Language profile</h2><p>Understand which languages and file types make up a project.</p></article>
-        <article className="feature-card"><span className="feature-number">03</span><h2>Code insights</h2><p>Next: map functions, classes, imports, dependencies, and complexity.</p></article>
+        <article className="feature-card"><span className="feature-number">03</span><h2>Code insights</h2><p>Inspect functions, classes, imports, and basic structural metrics in supported source files.</p></article>
       </section>
 
       <footer><span>ORBIT / EARLY BUILD</span><span>Designed to inspect, never execute.</span></footer>
