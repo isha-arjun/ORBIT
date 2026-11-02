@@ -22,6 +22,18 @@ type FileInsight = {
   complexity_estimate?: number | null;
   parser?: string;
 };
+type DependencyEdge = { from: string; to: string; specifier: string };
+type DependencyGraph = {
+  summary: {
+    files_mapped: number;
+    internal_dependencies: number;
+    files_with_dependencies: number;
+    most_depended_on: number;
+    unresolved_relative_imports: number;
+  };
+  nodes: string[];
+  edges: DependencyEdge[];
+};
 type CodeInsights = {
   summary: {
     files_analyzed: number;
@@ -32,6 +44,7 @@ type CodeInsights = {
   };
   files: FileInsight[];
   supported_languages: string[];
+  dependency_graph?: DependencyGraph;
 };
 type AnalysisResult = {
   project_name: string;
@@ -178,6 +191,9 @@ function App() {
     () => analysis?.code_insights?.files.find((item) => item.path === selectedFile?.path) || null,
     [analysis, selectedFile],
   );
+  const dependencyGraph = codeInsights.dependency_graph;
+  const selectedOutgoing = dependencyGraph?.edges.filter((edge) => edge.from === selectedFile?.path) || [];
+  const selectedIncoming = dependencyGraph?.edges.filter((edge) => edge.to === selectedFile?.path) || [];
 
   const statusLabel = {
     checking: "Checking API connection…",
@@ -359,6 +375,44 @@ function App() {
               <p className="explorer-footnote">Static analysis is best-effort. JavaScript and TypeScript symbols are detected heuristically; this is not a full compiler or security audit.</p>
             </section>
 
+            {dependencyGraph && (
+              <section className="dependency-panel">
+                <div className="explorer-heading">
+                  <div><p className="eyebrow">PROJECT CONNECTIONS</p><h4>Dependency map</h4></div>
+                  <span className="explorer-count">{dependencyGraph.summary.internal_dependencies} internal links</span>
+                </div>
+                <div className="insight-metrics dependency-metrics">
+                  <div><strong>{dependencyGraph.summary.files_mapped}</strong><span>Files mapped</span></div>
+                  <div><strong>{dependencyGraph.summary.internal_dependencies}</strong><span>Internal links</span></div>
+                  <div><strong>{dependencyGraph.summary.files_with_dependencies}</strong><span>Files importing others</span></div>
+                  <div><strong>{dependencyGraph.summary.unresolved_relative_imports}</strong><span>Unresolved local imports</span></div>
+                </div>
+                {selectedFile ? (
+                  <div className="dependency-columns">
+                    <div className="dependency-list">
+                      <h5>Depends on <span>{selectedOutgoing.length}</span></h5>
+                      {selectedOutgoing.length ? selectedOutgoing.map((edge) => (
+                        <div className="dependency-row" key={edge.from + edge.to + edge.specifier}><span className="dependency-arrow">→</span><code>{edge.to}</code><small>{edge.specifier}</small></div>
+                      )) : <p className="symbol-empty">No resolved internal dependencies from this file.</p>}
+                    </div>
+                    <div className="dependency-list">
+                      <h5>Used by <span>{selectedIncoming.length}</span></h5>
+                      {selectedIncoming.length ? selectedIncoming.map((edge) => (
+                        <div className="dependency-row" key={edge.from + edge.to + edge.specifier}><span className="dependency-arrow">←</span><code>{edge.from}</code><small>{edge.specifier}</small></div>
+                      )) : <p className="symbol-empty">No resolved internal dependencies point to this file.</p>}
+                    </div>
+                  </div>
+                ) : <p className="insight-empty">Select a file in the explorer to see what it depends on and which files depend on it.</p>}
+                <div className="dependency-all">
+                  <h5>Detected connections <span>showing {Math.min(dependencyGraph.edges.length, 40)} of {dependencyGraph.edges.length}</span></h5>
+                  {dependencyGraph.edges.length ? dependencyGraph.edges.slice(0, 40).map((edge) => (
+                    <div className="dependency-row" key={edge.from + edge.to + edge.specifier}><code>{edge.from}</code><span className="dependency-arrow">→</span><code>{edge.to}</code></div>
+                  )) : <p className="symbol-empty">No internal file connections were resolved in this project.</p>}
+                </div>
+                <p className="explorer-footnote">This map includes only imports that ORBIT could resolve to files inside the uploaded project. It is a static best-effort map, not a complete runtime call graph.</p>
+              </section>
+            )}
+
             <p className="safety-note">✓ {analysis.safety.note}</p>
           </div>
         )}
@@ -368,6 +422,7 @@ function App() {
         <article className="feature-card"><span className="feature-number">01</span><h2>Project explorer</h2><p>Search, filter, and navigate folders and files in an interactive workspace.</p></article>
         <article className="feature-card"><span className="feature-number">02</span><h2>Language profile</h2><p>Understand which languages and file types make up a project.</p></article>
         <article className="feature-card"><span className="feature-number">03</span><h2>Code insights</h2><p>Inspect functions, classes, imports, and basic structural metrics in supported source files.</p></article>
+        <article className="feature-card"><span className="feature-number">04</span><h2>Dependency map</h2><p>Trace resolved internal imports and see which files rely on one another.</p></article>
       </section>
 
       <footer><span>ORBIT / EARLY BUILD</span><span>Designed to inspect, never execute.</span></footer>
