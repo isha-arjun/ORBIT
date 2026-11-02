@@ -11,9 +11,9 @@ ORBIT is a cloud-hosted developer intelligence platform. It creates a structural
 
 ## Current features
 
-The frontend sends a ZIP archive to `POST /analyze/upload`. The API returns project counts, language statistics, folder and file inventory, plus static code insights for Python, JavaScript, and TypeScript: detected functions, classes, imports, line counts, and a basic Python branch-count estimate.
+The frontend sends a ZIP archive to `POST /analyze/upload`. The API returns project counts, language statistics, folder and file inventory, plus static code insights for Python, JavaScript, and TypeScript: detected functions, classes, imports, line counts, a basic Python branch-count estimate, and a best-effort internal dependency graph.
 
-Python files use the standard-library AST parser. JavaScript and TypeScript use a lightweight structural scan; symbol detection is heuristic and is not a full compiler, type checker, dependency resolver, or security audit.
+Python files use the standard-library AST parser. JavaScript and TypeScript use a lightweight structural scan; symbol detection is heuristic and is not a full compiler, type checker, or security audit. ORBIT also builds a best-effort internal dependency map by resolving supported relative JavaScript/TypeScript imports and Python module imports to files present in the uploaded archive. External packages, dynamic imports, runtime references, and unresolved aliases are not represented.
 
 ## Upload and analysis limits
 
