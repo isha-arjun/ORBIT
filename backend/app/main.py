@@ -2,6 +2,7 @@ from collections import Counter
 from io import BytesIO
 from pathlib import PurePosixPath
 import ast
+import posixpath
 import re
 import stat
 import zipfile
@@ -97,6 +98,72 @@ def _javascript_insights(source: str) -> dict:
         imports.append(match.group(1) or match.group(2))
     return {"status": "analyzed", "functions": functions, "classes": classes, "imports": sorted(set(imports)), "lines": len(source.splitlines()), "complexity_estimate": None, "parser": "JavaScript/TypeScript structural scan"}
 
+
+def _resolve_js_dependency(source_path: str, specifier: str, known_paths: set[str]) -> str | None:
+    if not specifier.startswith("."):
+        return None
+    base = posixpath.normpath(posixpath.join(posixpath.dirname(source_path), specifier))
+    if base == ".." or base.startswith("../") or base.startswith("/"):
+        return None
+    extensions = ("", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".json")
+    candidates = [base + ext for ext in extensions]
+    candidates.extend(posixpath.join(base, "index" + ext) for ext in extensions[1:])
+    return next((candidate for candidate in candidates if candidate in known_paths), None)
+
+
+def _resolve_python_dependency(source_path: str, module: str, known_paths: set[str]) -> str | None:
+    dots = len(module) - len(module.lstrip("."))
+    name = module[dots:]
+    if not name:
+        return None
+    if dots:
+        base = posixpath.dirname(source_path)
+        for _ in range(max(0, dots - 1)):
+            base = posixpath.dirname(base)
+        target = posixpath.normpath(posixpath.join(base, name.replace(".", "/")))
+    else:
+        target = name.replace(".", "/")
+    candidates = (target + ".py", target + ".pyi", posixpath.join(target, "__init__.py"), posixpath.join(target, "__init__.pyi"))
+    return next((candidate for candidate in candidates if candidate in known_paths), None)
+
+
+def _build_dependency_graph(insights: list[dict], file_rows: list[dict]) -> dict:
+    known_paths = {row["path"] for row in file_rows}
+    edges, unresolved_relative = [], 0
+    analyzed_paths = []
+    for item in insights:
+        if item.get("status") != "analyzed":
+            continue
+        source = item["path"]
+        analyzed_paths.append(source)
+        suffix = PurePosixPath(source).suffix.lower()
+        for specifier in item.get("imports", []):
+            target = None
+            if suffix in {".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"}:
+                if specifier.startswith("."):
+                    target = _resolve_js_dependency(source, specifier, known_paths)
+                    if target is None:
+                        unresolved_relative += 1
+            elif suffix in {".py", ".pyi"}:
+                target = _resolve_python_dependency(source, specifier, known_paths)
+            if target and target != source:
+                edges.append({"from": source, "to": target, "specifier": specifier})
+    edges.sort(key=lambda edge: (edge["from"].lower(), edge["to"].lower(), edge["specifier"]))
+    incoming = Counter(edge["to"] for edge in edges)
+    outgoing = Counter(edge["from"] for edge in edges)
+    return {
+        "summary": {
+            "files_mapped": len(analyzed_paths),
+            "internal_dependencies": len(edges),
+            "files_with_dependencies": sum(1 for path in analyzed_paths if outgoing[path]),
+            "most_depended_on": max(incoming.values(), default=0),
+            "unresolved_relative_imports": unresolved_relative,
+        },
+        "nodes": sorted(analyzed_paths, key=str.lower),
+        "edges": edges,
+    }
+
+
 def _analyze_source(path: PurePosixPath, raw: bytes) -> dict:
     try:
         source = raw.decode("utf-8-sig")
@@ -180,6 +247,7 @@ async def analyze_upload(file: UploadFile = File(...)) -> dict:
                 totals["classes"] += len(insight.get("classes", []))
                 totals["imports"] += len(insight.get("imports", []))
         code_insights.sort(key=lambda item: item["path"].lower())
+        dependency_graph = _build_dependency_graph(code_insights, file_rows)
         supported_count = sum(1 for row in file_rows if row["extension"] in SOURCE_EXTENSIONS)
         return {
             "project_name": PurePosixPath(filename).stem[:80] or "Project",
@@ -192,6 +260,7 @@ async def analyze_upload(file: UploadFile = File(...)) -> dict:
                 "files": code_insights,
                 "supported_languages": ["Python", "JavaScript", "TypeScript"],
                 "limits": {"max_source_file_bytes": MAX_SOURCE_FILE_BYTES, "max_total_source_bytes": MAX_SOURCE_ANALYSIS_BYTES},
+                "dependency_graph": dependency_graph,
             },
             "safety": {"source_executed": False, "source_contents_read": True, "analysis_mode": "static", "note": "ORBIT read supported source files in memory for static structure analysis. It did not execute code or intentionally store source contents."},
         }
