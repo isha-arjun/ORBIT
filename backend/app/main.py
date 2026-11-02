@@ -1,21 +1,61 @@
-from fastapi import FastAPI
+from collections import Counter
+from io import BytesIO
+from pathlib import PurePosixPath
+import re
+import stat
+import zipfile
+
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
     title="ORBIT API",
     description="Developer intelligence API",
-    version="0.1.0",
+    version="0.2.0",
 )
 
-# Only allow the deployed ORBIT frontend origins.
+FRONTEND_ORIGINS = [
+    "https://orbit-clear-board.vercel.app",
+    "https://orbit-jade-rho.vercel.app",
+]
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+MAX_FILES = 2500
+MAX_UNCOMPRESSED_BYTES = 80 * 1024 * 1024
+IGNORED_DIRECTORIES = {
+    ".git", "node_modules", ".venv", "venv", "__pycache__",
+    ".next", "dist", "build", ".turbo", ".cache",
+}
+SENSITIVE_NAMES = {
+    ".env", ".env.local", ".env.production", ".env.development",
+    "id_rsa", "id_ed25519",
+}
+LANGUAGES = {
+    ".py": "Python", ".pyi": "Python", ".js": "JavaScript",
+    ".jsx": "JavaScript", ".mjs": "JavaScript", ".cjs": "JavaScript",
+    ".ts": "TypeScript", ".tsx": "TypeScript",
+    ".java": "Java", ".kt": "Kotlin", ".kts": "Kotlin",
+    ".swift": "Swift", ".go": "Go", ".rs": "Rust",
+    ".c": "C", ".h": "C/C++", ".cpp": "C++", ".cc": "C++",
+    ".hpp": "C++", ".cs": "C#", ".php": "PHP",
+    ".rb": "Ruby", ".lua": "Lua", ".dart": "Dart",
+    ".html": "HTML", ".htm": "HTML", ".css": "CSS",
+    ".scss": "SCSS", ".sass": "SCSS", ".less": "Less",
+    ".json": "JSON", ".md": "Markdown", ".mdx": "MDX",
+    ".yaml": "YAML", ".yml": "YAML", ".toml": "TOML",
+    ".xml": "XML", ".sql": "SQL", ".sh": "Shell",
+    ".bash": "Shell", ".zsh": "Shell", ".ps1": "PowerShell",
+    ".ipynb": "Jupyter Notebook", ".vue": "Vue", ".svelte": "Svelte",
+    ".ex": "Elixir", ".exs": "Elixir", ".erl": "Erlang",
+    ".hs": "Haskell", ".scala": "Scala", ".r": "R",
+    ".R": "R", ".m": "Objective-C", ".mm": "Objective-C++",
+}
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://orbit-clear-board.vercel.app",
-        "https://orbit-jade-rho.vercel.app",
-    ],
+    allow_origins=FRONTEND_ORIGINS,
     allow_credentials=False,
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -24,3 +64,142 @@ app.add_middleware(
 def health_check() -> dict[str, str]:
     """Return a small health response for hosting-provider checks."""
     return {"status": "ok", "service": "orbit-api"}
+
+
+def _safe_archive_path(raw_name: str) -> PurePosixPath:
+    """Validate a ZIP member path without extracting it to disk."""
+    if not raw_name or "\x00" in raw_name or "\\" in raw_name:
+        raise ValueError("The ZIP contains an invalid file path.")
+
+    path = PurePosixPath(raw_name)
+    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+        raise ValueError("The ZIP contains an unsafe file path.")
+    if path.parts and re.match(r"^[a-zA-Z]:", path.parts[0]):
+        raise ValueError("The ZIP contains an unsafe file path.")
+    if len(raw_name) > 500:
+        raise ValueError("The ZIP contains a file path that is too long.")
+    return path
+
+
+def _language_for(path: PurePosixPath) -> str:
+    name = path.name.lower()
+    if name == "dockerfile" or name.startswith("dockerfile."):
+        return "Dockerfile"
+    if name in {"makefile", "gnumakefile"}:
+        return "Make"
+    return LANGUAGES.get(path.suffix.lower(), "Other")
+
+
+@app.post("/analyze/upload")
+async def analyze_upload(file: UploadFile = File(...)) -> dict:
+    """Inventory a ZIP project. Source files are never extracted or executed."""
+    filename = file.filename or "project.zip"
+    if not filename.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Please upload a .zip file.")
+
+    payload = await file.read(MAX_UPLOAD_BYTES + 1)
+    await file.close()
+    if len(payload) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="ZIP is too large. The upload limit is 15 MB.",
+        )
+
+    try:
+        archive = zipfile.ZipFile(BytesIO(payload))
+    except (zipfile.BadZipFile, OSError):
+        raise HTTPException(status_code=400, detail="That file is not a valid ZIP archive.")
+
+    try:
+        entries = archive.infolist()
+        if len(entries) > MAX_FILES + 500:
+            raise HTTPException(status_code=413, detail="The ZIP contains too many entries.")
+
+        file_rows = []
+        folder_paths = set()
+        language_counts = Counter()
+        total_uncompressed = 0
+        seen_paths = set()
+
+        for entry in entries:
+            try:
+                path = _safe_archive_path(entry.filename.rstrip("/"))
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+
+            mode = entry.external_attr >> 16
+            if stat.S_ISLNK(mode):
+                raise HTTPException(status_code=400, detail="The ZIP contains a symbolic link.")
+
+            if any(part in IGNORED_DIRECTORIES for part in path.parts):
+                continue
+            if path.name in SENSITIVE_NAMES or path.name.endswith((".pem", ".key", ".p12")):
+                continue
+            if entry.is_dir():
+                folder_paths.add(path.as_posix())
+                continue
+
+            normalized = path.as_posix()
+            if normalized in seen_paths:
+                continue
+            seen_paths.add(normalized)
+
+            total_uncompressed += entry.file_size
+            if total_uncompressed > MAX_UNCOMPRESSED_BYTES:
+                raise HTTPException(
+                    status_code=413,
+                    detail="The ZIP expands beyond the 80 MB analysis limit.",
+                )
+            if len(file_rows) >= MAX_FILES:
+                raise HTTPException(
+                    status_code=413,
+                    detail="The project contains more than 2,500 files.",
+                )
+
+            for parent in path.parents:
+                if parent.as_posix() != ".":
+                    folder_paths.add(parent.as_posix())
+
+            language = _language_for(path)
+            language_counts[language] += 1
+            file_rows.append({
+                "path": normalized,
+                "name": path.name,
+                "extension": path.suffix.lower() or "(none)",
+                "language": language,
+                "size_bytes": entry.file_size,
+            })
+
+        if not file_rows:
+            raise HTTPException(
+                status_code=400,
+                detail="No analyzable files were found in that ZIP.",
+            )
+
+        file_rows.sort(key=lambda item: item["path"].lower())
+        languages = [
+            {"name": name, "files": count}
+            for name, count in language_counts.most_common()
+        ]
+        project_name = PurePosixPath(filename).stem[:80] or "Project"
+
+        return {
+            "project_name": project_name,
+            "summary": {
+                "files_scanned": len(file_rows),
+                "folders_found": len(folder_paths),
+                "total_uncompressed_bytes": total_uncompressed,
+                "languages_detected": len(language_counts),
+            },
+            "languages": languages,
+            "folders": sorted(folder_paths, key=str.lower),
+            "files": file_rows,
+            "safety": {
+                "source_executed": False,
+                "source_contents_read": False,
+                "ignored_directories": sorted(IGNORED_DIRECTORIES),
+                "note": "ORBIT inspected ZIP metadata only. It did not extract or execute source files.",
+            },
+        }
+    finally:
+        archive.close()
