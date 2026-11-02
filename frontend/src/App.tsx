@@ -44,7 +44,7 @@ type AnalysisResult = {
   languages: LanguageStat[];
   folders: string[];
   files: ProjectFile[];
-  code_insights: CodeInsights;
+  code_insights?: CodeInsights;
   safety: {
     source_executed: boolean;
     source_contents_read: boolean;
@@ -169,8 +169,13 @@ function App() {
     });
   }, [analysis, searchQuery, languageFilter, selectedFolder]);
 
+  const codeInsights = analysis?.code_insights || {
+    summary: { files_analyzed: 0, functions_found: 0, classes_found: 0, imports_found: 0, source_files_skipped_or_over_limit: 0 },
+    files: [],
+    supported_languages: ["Python", "JavaScript", "TypeScript"],
+  };
   const selectedCodeInsight = useMemo(
-    () => analysis?.code_insights.files.find((item) => item.path === selectedFile?.path) || null,
+    () => analysis?.code_insights?.files.find((item) => item.path === selectedFile?.path) || null,
     [analysis, selectedFile],
   );
 
@@ -309,15 +314,17 @@ function App() {
             <section className="code-insights-panel">
               <div className="explorer-heading">
                 <div><p className="eyebrow">STATIC ANALYSIS</p><h4>Code intelligence</h4></div>
-                <span className="explorer-count">{analysis.code_insights.summary.files_analyzed} source files analyzed</span>
+                <span className="explorer-count">{codeInsights.summary.files_analyzed} source files analyzed</span>
               </div>
               <div className="insight-metrics">
-                <div><strong>{analysis.code_insights.summary.functions_found}</strong><span>Functions</span></div>
-                <div><strong>{analysis.code_insights.summary.classes_found}</strong><span>Classes</span></div>
-                <div><strong>{analysis.code_insights.summary.imports_found}</strong><span>Imports</span></div>
-                <div><strong>{analysis.code_insights.summary.source_files_skipped_or_over_limit}</strong><span>Skipped</span></div>
+                <div><strong>{codeInsights.summary.functions_found}</strong><span>Functions</span></div>
+                <div><strong>{codeInsights.summary.classes_found}</strong><span>Classes</span></div>
+                <div><strong>{codeInsights.summary.imports_found}</strong><span>Imports</span></div>
+                <div><strong>{codeInsights.summary.source_files_skipped_or_over_limit}</strong><span>Skipped</span></div>
               </div>
-              {selectedCodeInsight ? (
+              {!analysis.code_insights ? (
+                <p className="insight-empty">The inventory API responded, but static code analysis is not available on the connected backend yet. Your project inventory is still available.</p>
+              ) : selectedCodeInsight ? (
                 <div className="symbol-browser">
                   <div className="symbol-heading">
                     <div><span className="detail-kicker">FILE STRUCTURE</span><strong>{selectedCodeInsight.path}</strong></div>
@@ -347,7 +354,7 @@ function App() {
                   ) : <p className="symbol-empty">{selectedCodeInsight.error || selectedCodeInsight.reason || "This file could not be analyzed."}</p>}
                 </div>
               ) : (
-                <p className="insight-empty">Select a supported Python, JavaScript, or TypeScript file in the explorer to inspect its functions, classes, and imports. Supported parsers: {analysis.code_insights.supported_languages.join(", ")}.</p>
+                <p className="insight-empty">Select a supported Python, JavaScript, or TypeScript file in the explorer to inspect its functions, classes, and imports. Supported parsers: {codeInsights.supported_languages.join(", ")}.</p>
               )}
               <p className="explorer-footnote">Static analysis is best-effort. JavaScript and TypeScript symbols are detected heuristically; this is not a full compiler or security audit.</p>
             </section>
