@@ -7,10 +7,13 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Restrict this to the deployed frontend origin before production.
+# Only allow the deployed ORBIT frontend origins.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://orbit-clear-board.vercel.app",
+        "https://orbit-jade-rho.vercel.app",
+    ],
     allow_credentials=False,
     allow_methods=["GET"],
     allow_headers=["*"],
