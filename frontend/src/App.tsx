@@ -17,6 +17,7 @@ type FileInsight = {
   reason?: string;
   functions?: SymbolItem[];
   classes?: SymbolItem[];
+  signals?: SymbolItem[];
   imports?: string[];
   lines?: number;
   complexity_estimate?: number | null;
@@ -363,6 +364,11 @@ function App() {
                           )) : <p className="symbol-empty">No classes detected.</p>}
                         </div>
                       </div>
+                      {selectedCodeInsight.signals?.length ? (
+                        <div className="imports-block"><h5>Signals <span>{selectedCodeInsight.signals.length}</span></h5>
+                          <div className="import-chips">{selectedCodeInsight.signals.map((signal) => <code key={signal.name + signal.line}>{signal.name} · line {signal.line}</code>)}</div>
+                        </div>
+                      ) : null}
                       <div className="imports-block"><h5>Imports <span>{selectedCodeInsight.imports?.length || 0}</span></h5>
                         {selectedCodeInsight.imports?.length ? <div className="import-chips">{selectedCodeInsight.imports.map((item) => <code key={item}>{item}</code>)}</div> : <p className="symbol-empty">No imports detected.</p>}
                       </div>
