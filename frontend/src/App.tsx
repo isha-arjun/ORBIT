@@ -31,9 +31,9 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 
 function formatBytes(bytes: number): string {
-  if (bytes < 1024) return \`${bytes} B\`;
-  if (bytes < 1024 * 1024) return \`${(bytes / 1024).toFixed(1)} KB\`;
-  return \`${(bytes / (1024 * 1024)).toFixed(1)} MB\`;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function normalizeFolder(folder: string): string {
@@ -59,7 +59,7 @@ function App() {
         return;
       }
       try {
-        const response = await fetch(\`${API_BASE_URL}/health\`);
+        const response = await fetch(`${API_BASE_URL}/health`);
         if (!response.ok) throw new Error("API health check failed");
         const data: { status?: string; service?: string } = await response.json();
         if (data.status !== "ok" || data.service !== "orbit-api") throw new Error("Unexpected API response");
@@ -101,7 +101,7 @@ function App() {
     formData.append("file", selectedUpload);
     setIsAnalyzing(true);
     try {
-      const response = await fetch(\`${API_BASE_URL}/analyze/upload\`, { method: "POST", body: formData });
+      const response = await fetch(`${API_BASE_URL}/analyze/upload`, { method: "POST", body: formData });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "The project could not be analyzed.");
       const result = data as AnalysisResult;
@@ -139,7 +139,7 @@ function App() {
       const matchesSearch = !query || file.path.toLowerCase().includes(query) || file.language.toLowerCase().includes(query);
       const matchesLanguage = languageFilter === "All languages" || file.language === languageFilter;
       const folder = normalizeFolder(selectedFolder);
-      const matchesFolder = selectedFolder === "All files" || file.path.startsWith(\`${folder}/\`) || file.path === folder;
+      const matchesFolder = selectedFolder === "All files" || file.path.startsWith(`${folder}/`) || file.path === folder;
       return matchesSearch && matchesLanguage && matchesFolder;
     });
   }, [analysis, searchQuery, languageFilter, selectedFolder]);
@@ -167,7 +167,7 @@ function App() {
         <p className="eyebrow">YOUR CODEBASE, UNDERSTOOD</p>
         <h1>See the structure<br />behind your software.</h1>
         <p className="intro">Map a project, identify its languages, and explore its structure — without executing its code.</p>
-        <div className={\`status status-${apiState}\`} role="status" aria-live="polite"><span className="status-dot" />{statusLabel}</div>
+        <div className={`status status-${apiState}`} role="status" aria-live="polite"><span className="status-dot" />{statusLabel}</div>
       </section>
 
       <section className="analyzer-card" aria-labelledby="analyzer-title">
@@ -180,7 +180,7 @@ function App() {
           <span className="step-tag">01 / INVENTORY</span>
         </div>
 
-        <label className={\`upload-zone ${isAnalyzing ? "upload-disabled" : ""}\`}>
+        <label className={`upload-zone ${isAnalyzing ? "upload-disabled" : ""}`}>
           <input type="file" accept=".zip,application/zip" onChange={handleFileChange} disabled={isAnalyzing || apiState !== "online"} />
           <span className="upload-icon">↑</span>
           <strong>{isAnalyzing ? "Analyzing project…" : analysis ? "Analyze another project" : "Choose a ZIP archive"}</strong>
@@ -212,7 +212,7 @@ function App() {
                     const percent = analysis.summary.files_scanned ? Math.max(2, (language.files / analysis.summary.files_scanned) * 100) : 0;
                     return <div className="language-row" key={language.name}>
                       <div className="language-label"><span>{language.name}</span><span>{language.files}</span></div>
-                      <div className="bar-track"><div className="bar-fill" style={{ width: \`${percent}%\` }} /></div>
+                      <div className="bar-track"><div className="bar-fill" style={{ width: `${percent}%` }} /></div>
                     </div>;
                   })}
                 </div>
@@ -239,19 +239,19 @@ function App() {
 
               <div className="explorer-layout">
                 <aside className="folder-sidebar" aria-label="Project folders">
-                  <button className={\`folder-choice root-choice ${selectedFolder === "All files" ? "selected" : ""}\`} onClick={() => setSelectedFolder("All files")}>
+                  <button className={`folder-choice root-choice ${selectedFolder === "All files" ? "selected" : ""}`} onClick={() => setSelectedFolder("All files")}>
                     <span className="folder-glyph">◫</span><span>All files</span><span className="folder-total">{analysis.files.length}</span>
                   </button>
                   {visibleFolders.map((folder) => {
                     const depth = folder.split("/").length - 1;
-                    const hasChildren = folderItems.some((candidate) => candidate.startsWith(\`${folder}/\`));
+                    const hasChildren = folderItems.some((candidate) => candidate.startsWith(`${folder}/`));
                     const isCollapsed = collapsedFolders.includes(folder);
-                    const folderCount = analysis.files.filter((file) => file.path.startsWith(\`${folder}/\`)).length;
-                    return <div className="folder-tree-row" key={folder} style={{ paddingLeft: \`${depth * 13}px\` }}>
-                      <button className={\`folder-choice ${selectedFolder === folder ? "selected" : ""}\`} onClick={() => setSelectedFolder(folder)} title={folder}>
+                    const folderCount = analysis.files.filter((file) => file.path.startsWith(`${folder}/`)).length;
+                    return <div className="folder-tree-row" key={folder} style={{ paddingLeft: `${depth * 13}px` }}>
+                      <button className={`folder-choice ${selectedFolder === folder ? "selected" : ""}`} onClick={() => setSelectedFolder(folder)} title={folder}>
                         <span className="folder-glyph">▰</span><span className="folder-label">{folder.split("/").pop()}</span><span className="folder-total">{folderCount}</span>
                       </button>
-                      {hasChildren && <button className="folder-toggle" onClick={() => toggleFolder(folder)} aria-label={\`${isCollapsed ? "Expand" : "Collapse"} ${folder}\`}>{isCollapsed ? "＋" : "−"}</button>}
+                      {hasChildren && <button className="folder-toggle" onClick={() => toggleFolder(folder)} aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${folder}`}>{isCollapsed ? "＋" : "−"}</button>}
                     </div>;
                   })}
                 </aside>
@@ -259,7 +259,7 @@ function App() {
                 <div className="explorer-main">
                   <div className="file-table-head"><span>NAME</span><span>LANGUAGE</span><span>SIZE</span></div>
                   {filteredFiles.length ? <div className="explorer-file-list">
-                    {filteredFiles.map((file) => <button key={file.path} className={\`explorer-file-row ${selectedFile?.path === file.path ? "active" : ""}\`} onClick={() => setSelectedFile(file)}>
+                    {filteredFiles.map((file) => <button key={file.path} className={`explorer-file-row ${selectedFile?.path === file.path ? "active" : ""}`} onClick={() => setSelectedFile(file)}>
                       <span className="explorer-file-name"><span className="file-icon">◇</span>{file.name}<small>{file.path}</small></span>
                       <span className="explorer-file-language">{file.language}</span>
                       <span className="explorer-file-size">{formatBytes(file.size_bytes)}</span>
