@@ -140,3 +140,7 @@ footer { display: flex; justify-content: space-between; gap: 16px; padding: 22px
 .dependency-all{margin-top:12px}
 .dependency-all .dependency-row{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)}
 @media(max-width:760px){.dependency-columns{grid-template-columns:1fr}.dependency-row{align-items:flex-start}.dependency-row small{max-width:42%}}
+
+
+.upload-guidance{margin:10px 2px 0;color:#8f9db1;font-size:11px;line-height:1.65}
+.upload-guidance strong{color:#c8d8f0}
