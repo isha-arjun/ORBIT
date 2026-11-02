@@ -1,6 +1,6 @@
 # ORBIT
 
-ORBIT is a cloud-hosted developer intelligence platform. Its first working feature creates a structural inventory of a source-code project from a ZIP archive.
+ORBIT is a cloud-hosted developer intelligence platform. It creates a structural inventory of source projects and performs bounded static analysis of supported source files from ZIP archives.
 
 ## Architecture
 
@@ -9,27 +9,24 @@ ORBIT is a cloud-hosted developer intelligence platform. Its first working featu
 - `docs/`: architecture and development notes.
 - Supabase PostgreSQL is planned for a later persistence milestone and is not currently part of the request path.
 
-## Current feature: ZIP project inventory
+## Current features
 
-The frontend sends a ZIP archive to `POST /analyze/upload`. The API returns:
+The frontend sends a ZIP archive to `POST /analyze/upload`. The API returns project counts, language statistics, folder and file inventory, plus static code insights for Python, JavaScript, and TypeScript: detected functions, classes, imports, line counts, and a basic Python branch-count estimate.
 
-- Project name and total file/folder counts.
-- Expanded project size and detected language counts.
-- A folder overview and file inventory, including paths, extensions, and file sizes.
+Python files use the standard-library AST parser. JavaScript and TypeScript use a lightweight structural scan; symbol detection is heuristic and is not a full compiler, type checker, dependency resolver, or security audit.
 
-The current analyzer is metadata-based. It does not yet parse source code, map dependencies, calculate code complexity, or use AI.
-
-### Upload limits and filtering
+## Upload and analysis limits
 
 - Maximum compressed upload: 15 MB.
 - Maximum expanded file content: 80 MB.
 - Maximum files: 2,500.
-- Unsafe paths and symbolic links are rejected.
-- Common generated folders (such as `.git`, `node_modules`, and build outputs) are excluded from the inventory.
-- Common secret/credential filenames are excluded from the returned inventory.
+- Maximum individual source file analyzed: 256 KB.
+- Maximum total source bytes analyzed per archive: 5 MB.
+- Supported source extensions: Python, JavaScript, and TypeScript variants.
+- Unsafe paths and symbolic links are rejected; common generated folders are excluded.
 
-**Privacy note:** The ZIP is transmitted to the ORBIT API on Render for in-memory inspection. Do not upload archives containing `.env` files, passwords, API tokens, private keys, or other secrets. Excluding these files before creating the ZIP is safer; filtering them from the result does not prevent their bytes from being uploaded.
+## Privacy and safety
 
-## Safety principles
+The ZIP is transmitted to the ORBIT API on Render. Supported source files are read in memory for static analysis; the application does not intentionally persist source contents. Remove `.env` files, credentials, tokens, private keys, and other sensitive material before creating the ZIP. Filename filtering does not prevent other secrets from being transmitted.
 
-ORBIT treats uploaded project code as data and never executes it. It applies archive and upload limits, validates paths, and does not send source code to third-party AI services.
+ORBIT never executes uploaded project code and does not send source code to third-party AI services.
