@@ -66,7 +66,7 @@ type AnalysisResult = {
 };
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
-const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -127,7 +127,7 @@ function App() {
       return;
     }
     if (selectedUpload.size > MAX_UPLOAD_BYTES) {
-      setError("That ZIP is larger than the 15 MB upload limit.");
+      setError("That ZIP is larger than the 50 MB upload limit. Try excluding the .godot cache folder and unused large assets.");
       return;
     }
     if (!API_BASE_URL) {
@@ -226,7 +226,7 @@ function App() {
           <div>
             <p className="eyebrow">PROJECT ANALYSIS</p>
             <h2 id="analyzer-title">Map your project</h2>
-            <p className="section-copy">Upload a ZIP to build an interactive file explorer and language profile.</p>
+            <p className="section-copy">Upload a ZIP to map your project structure, code, and internal dependencies. Godot projects are supported.</p>
           </div>
           <span className="step-tag">01 / INVENTORY</span>
         </div>
@@ -235,9 +235,10 @@ function App() {
           <input type="file" accept=".zip,application/zip" onChange={handleFileChange} disabled={isAnalyzing || apiState !== "online"} />
           <span className="upload-icon">↑</span>
           <strong>{isAnalyzing ? "Analyzing project…" : analysis ? "Analyze another project" : "Choose a ZIP archive"}</strong>
-          <span>{isAnalyzing ? "Reading archive structure" : "Select a project ZIP · Maximum 15 MB"}</span>
+          <span>{isAnalyzing ? "Reading archive structure" : "Select a project ZIP · Maximum 50 MB"}</span>
           <span className="upload-action">{isAnalyzing ? "PLEASE WAIT" : "SELECT PROJECT"}</span>
         </label>
+        <p className="upload-guidance">Godot tip: ZIP the project folder containing project.godot. ORBIT skips the generated .godot cache automatically. Keep the ZIP under 50 MB.</p>
         {apiState !== "online" && <p className="helper-text">The analyzer becomes available when the backend is connected.</p>}
         {error && <p className="error-message" role="alert">{error}</p>}
 
@@ -370,7 +371,7 @@ function App() {
                   ) : <p className="symbol-empty">{selectedCodeInsight.error || selectedCodeInsight.reason || "This file could not be analyzed."}</p>}
                 </div>
               ) : (
-                <p className="insight-empty">Select a supported Python, JavaScript, or TypeScript file in the explorer to inspect its functions, classes, and imports. Supported parsers: {codeInsights.supported_languages.join(", ")}.</p>
+                <p className="insight-empty">Select a supported GDScript, Python, JavaScript, or TypeScript file in the explorer to inspect its functions, classes, and imports. Supported parsers: {codeInsights.supported_languages.join(", ")}.</p>
               )}
               <p className="explorer-footnote">Static analysis is best-effort. JavaScript and TypeScript symbols are detected heuristically; this is not a full compiler or security audit.</p>
             </section>
