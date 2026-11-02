@@ -10,7 +10,7 @@ import zipfile
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="ORBIT API", description="Developer intelligence API", version="0.3.0")
+app = FastAPI(title="ORBIT API", description="Developer intelligence API", version="0.4.0")
 FRONTEND_ORIGINS = ["https://orbit-clear-board.vercel.app", "https://orbit-jade-rho.vercel.app"]
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 MAX_FILES = 2500
