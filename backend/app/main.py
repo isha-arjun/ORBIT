@@ -12,15 +12,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="ORBIT API", description="Developer intelligence API", version="0.3.0")
 FRONTEND_ORIGINS = ["https://orbit-clear-board.vercel.app", "https://orbit-jade-rho.vercel.app"]
-MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 MAX_FILES = 2500
-MAX_UNCOMPRESSED_BYTES = 80 * 1024 * 1024
+MAX_UNCOMPRESSED_BYTES = 150 * 1024 * 1024
 MAX_SOURCE_FILE_BYTES = 256 * 1024
 MAX_SOURCE_ANALYSIS_BYTES = 5 * 1024 * 1024
-IGNORED_DIRECTORIES = {".git", "node_modules", ".venv", "venv", "__pycache__", ".next", "dist", "build", ".turbo", ".cache"}
+IGNORED_DIRECTORIES = {".git", ".godot", "node_modules", ".venv", "venv", "__pycache__", ".next", "dist", "build", ".turbo", ".cache"}
 SENSITIVE_NAMES = {".env", ".env.local", ".env.production", ".env.development", "id_rsa", "id_ed25519"}
 LANGUAGES = {
-    ".py": "Python", ".pyi": "Python", ".js": "JavaScript", ".jsx": "JavaScript", ".mjs": "JavaScript", ".cjs": "JavaScript",
+    ".py": "Python", ".pyi": "Python", ".gd": "GDScript", ".tscn": "Godot Scene", ".tres": "Godot Resource", ".gdshader": "Godot Shader", ".godot": "Godot Project Config", ".js": "JavaScript", ".jsx": "JavaScript", ".mjs": "JavaScript", ".cjs": "JavaScript",
     ".ts": "TypeScript", ".tsx": "TypeScript", ".java": "Java", ".kt": "Kotlin", ".kts": "Kotlin", ".swift": "Swift",
     ".go": "Go", ".rs": "Rust", ".c": "C", ".h": "C/C++", ".cpp": "C++", ".cc": "C++", ".hpp": "C++",
     ".cs": "C#", ".php": "PHP", ".rb": "Ruby", ".lua": "Lua", ".dart": "Dart", ".html": "HTML", ".htm": "HTML",
@@ -28,7 +28,7 @@ LANGUAGES = {
     ".yaml": "YAML", ".yml": "YAML", ".toml": "TOML", ".xml": "XML", ".sql": "SQL", ".sh": "Shell", ".bash": "Shell",
     ".zsh": "Shell", ".ps1": "PowerShell", ".ipynb": "Jupyter Notebook", ".vue": "Vue", ".svelte": "Svelte",
 }
-SOURCE_EXTENSIONS = {".py", ".pyi", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"}
+SOURCE_EXTENSIONS = {".py", ".pyi", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".gd"}
 
 app.add_middleware(CORSMiddleware, allow_origins=FRONTEND_ORIGINS, allow_credentials=False, allow_methods=["GET", "POST"], allow_headers=["*"])
 
@@ -145,7 +145,11 @@ def _build_dependency_graph(insights: list[dict], file_rows: list[dict]) -> dict
         suffix = PurePosixPath(source).suffix.lower()
         for specifier in item.get("imports", []):
             target = None
-            if suffix in {".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"}:
+            if suffix == ".gd":
+                if specifier.startswith("res://"):
+                    candidate = specifier[len("res://"):]
+                    target = candidate if candidate in known_paths else None
+            elif suffix in {".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"}:
                 if specifier.startswith("."):
                     target = _resolve_js_dependency(source, specifier, known_paths)
                     if target is None:
@@ -170,6 +174,33 @@ def _build_dependency_graph(insights: list[dict], file_rows: list[dict]) -> dict
     }
 
 
+
+def _gdscript_insights(source: str) -> dict:
+    functions, classes, imports, signals = [], [], [], []
+    for line_number, line in enumerate(source.splitlines(), start=1):
+        stripped = line.strip()
+        match = re.match(r"^(?:static\s+)?func\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(", stripped)
+        if match:
+            functions.append({"name": match.group(1), "line": line_number, "kind": "function"})
+        match = re.match(r"^class_name\s+([A-Za-z_][A-Za-z0-9_]*)", stripped)
+        if match:
+            classes.append({"name": match.group(1), "line": line_number})
+        match = re.match(r"^signal\s+([A-Za-z_][A-Za-z0-9_]*)", stripped)
+        if match:
+            signals.append({"name": match.group(1), "line": line_number})
+        for path_match in re.finditer(r"""(?:preload|load)\s*\(\s*["'](res://[^"']+)["']\s*\)""", stripped):
+            imports.append(path_match.group(1))
+        extends_match = re.match(r"""^extends\s+["'](res://[^"']+)["']""", stripped)
+        if extends_match:
+            imports.append(extends_match.group(1))
+    return {
+        "status": "analyzed", "functions": functions, "classes": classes,
+        "imports": sorted(set(imports)), "signals": signals,
+        "lines": len(source.splitlines()), "complexity_estimate": None,
+        "parser": "GDScript structural scan",
+    }
+
+
 def _analyze_source(path: PurePosixPath, raw: bytes) -> dict:
     try:
         source = raw.decode("utf-8-sig")
@@ -179,6 +210,8 @@ def _analyze_source(path: PurePosixPath, raw: bytes) -> dict:
         return {"status": "skipped_binary", "reason": "File appears to contain binary data."}
     if path.suffix.lower() in {".py", ".pyi"}:
         return _python_insights(source)
+    if path.suffix.lower() == ".gd":
+        return _gdscript_insights(source)
     return _javascript_insights(source)
 
 @app.post("/analyze/upload")
@@ -189,7 +222,7 @@ async def analyze_upload(file: UploadFile = File(...)) -> dict:
     payload = await file.read(MAX_UPLOAD_BYTES + 1)
     await file.close()
     if len(payload) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="ZIP is too large. The upload limit is 15 MB.")
+        raise HTTPException(status_code=413, detail="ZIP is too large. The upload limit is 50 MB.")
     try:
         archive = zipfile.ZipFile(BytesIO(payload))
     except (zipfile.BadZipFile, OSError):
@@ -223,7 +256,7 @@ async def analyze_upload(file: UploadFile = File(...)) -> dict:
             seen_paths.add(normalized)
             total_uncompressed += entry.file_size
             if total_uncompressed > MAX_UNCOMPRESSED_BYTES:
-                raise HTTPException(status_code=413, detail="The ZIP expands beyond the 80 MB analysis limit.")
+                raise HTTPException(status_code=413, detail="The ZIP expands beyond the 150 MB analysis limit.")
             if len(file_rows) >= MAX_FILES:
                 raise HTTPException(status_code=413, detail="The project contains more than 2,500 files.")
             for parent in path.parents:
