@@ -21,7 +21,9 @@ body {
 h1 { font-size: clamp(48px, 8vw, 82px); line-height: .99; letter-spacing: -.065em; margin: 0; font-weight: 650; }
 .intro { color: #aab4c5; line-height: 1.8; font-size: 16px; max-width: 570px; margin: 27px 0; }
 .status { display: inline-flex; align-items: center; gap: 10px; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; padding: 10px 14px; color: #c4ccda; font-size: 12px; }
-.status-dot { width: 7px; height: 7px; background: #73d6a1; border-radius: 50%; box-shadow: 0 0 12px rgba(115,214,161,.65); }
+.status-dot { width: 7px; height: 7px; background: #e5b65d; border-radius: 50%; }
+.status-online .status-dot { background: #73d6a1; box-shadow: 0 0 12px rgba(115,214,161,.65); }
+.status-offline .status-dot { background: #ed7777; box-shadow: 0 0 12px rgba(237,119,119,.45); }
 .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; padding-bottom: 80px; }
 .feature-card { min-height: 180px; padding: 24px; border: 1px solid rgba(255,255,255,.10); border-radius: 16px; background: rgba(255,255,255,.025); }
 .feature-card h2 { margin: 28px 0 9px; font-size: 18px; }
