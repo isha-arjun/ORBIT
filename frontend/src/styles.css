@@ -735,3 +735,37 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;op
 :root[data-theme="light"] .theme-toggle:hover{background:rgba(49,95,186,.13)}
 :root[data-theme="light"] footer{border-top-color:rgba(43,67,105,.14)}
 @media(max-width:600px){.topbar-tools{gap:9px}.topbar-tools .topbar-label{max-width:115px;line-height:1.5}.theme-toggle{min-height:34px;padding:0 9px}.theme-toggle span:last-child{font-size:8px}}
+
+
+/* Architecture intelligence: explainable hotspots and import-cycle candidates */
+.architecture-insights{margin-top:18px;padding:16px;border:1px solid rgba(142,184,255,.16);border-radius:12px;background:linear-gradient(135deg,rgba(92,143,219,.075),rgba(92,143,219,.025))}
+.architecture-insights-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}
+.architecture-insights-heading>span:last-child{color:#9eb4d4;font-size:10px}
+.architecture-insights-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.architecture-signal{min-width:0;padding:13px;border:1px solid rgba(142,184,255,.13);border-radius:9px;background:rgba(8,15,27,.2)}
+.architecture-signal h5{display:flex;align-items:center;gap:8px;margin:0 0 10px;color:#dce8fa;font-size:11px}
+.architecture-signal h5 span{padding:2px 6px;border-radius:20px;background:rgba(142,184,255,.12);color:#b8d0f5;font-size:9px}
+.architecture-signal>button{display:flex;width:100%;flex-direction:column;align-items:flex-start;gap:5px;padding:9px 0;border:0;border-top:1px solid rgba(142,184,255,.09);background:transparent;color:inherit;text-align:left;cursor:pointer}
+.architecture-signal>button:hover code{color:#b8d0ff;text-decoration:underline}
+.architecture-signal>button code{max-width:100%;overflow-wrap:anywhere;color:#c6d8f4;font-size:10px}
+.architecture-signal>button>span{color:#8fa5c5;font-size:9px}
+.architecture-signal>button b{color:#dce8fa;font-weight:700}
+.cycle-candidate{display:flex;flex-direction:column;gap:5px;padding:9px 0;border-top:1px solid rgba(142,184,255,.09)}
+.cycle-candidate strong{color:#f1c98c;font-size:10px}
+.cycle-candidate span{color:#d0ddf1;font-size:10px;line-height:1.5;overflow-wrap:anywhere}
+.cycle-candidate small{color:#91a6c4;font-size:9px;line-height:1.5}
+:root[data-theme="light"] .architecture-insights{border-color:rgba(49,95,186,.16);background:linear-gradient(135deg,rgba(92,137,207,.10),rgba(255,255,255,.5))}
+:root[data-theme="light"] .architecture-insights-heading>span:last-child{color:#71829a}
+:root[data-theme="light"] .architecture-signal{border-color:rgba(49,95,186,.13);background:rgba(255,255,255,.72)}
+:root[data-theme="light"] .architecture-signal h5{color:#344966}
+:root[data-theme="light"] .architecture-signal h5 span{background:#eaf1fc;color:#315fba}
+:root[data-theme="light"] .architecture-signal>button{border-top-color:rgba(43,67,105,.09)}
+:root[data-theme="light"] .architecture-signal>button code{color:#315fba}
+:root[data-theme="light"] .architecture-signal>button:hover code{color:#173d7b}
+:root[data-theme="light"] .architecture-signal>button>span{color:#71829a}
+:root[data-theme="light"] .architecture-signal>button b{color:#344966}
+:root[data-theme="light"] .cycle-candidate{border-top-color:rgba(43,67,105,.09)}
+:root[data-theme="light"] .cycle-candidate strong{color:#8a5a16}
+:root[data-theme="light"] .cycle-candidate span{color:#344966}
+:root[data-theme="light"] .cycle-candidate small{color:#71829a}
+@media(max-width:700px){.architecture-insights-grid{grid-template-columns:1fr}.architecture-insights{padding:12px}}
