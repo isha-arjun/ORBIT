@@ -19,7 +19,7 @@ ORBIT is a cloud-hosted developer intelligence workspace. It creates a structura
 - Finding triage with open/resolved states stored in the current browser.
 - Recent public GitHub commit history via the repository's Atom feed, avoiding the unauthenticated GitHub REST API quota, with in-workspace search and manual refresh.
 - Up to five recently imported public repositories remembered locally for quick re-entry.
-- Local project snapshots and comparisons of added/removed files and dependency edges; up to 20 snapshots are retained in the current browser.
+- Local project snapshots and comparisons of added/removed files, dependency edges, and detected functions/classes/signals; up to 20 snapshots are retained in the current browser.
 - Downloadable versioned JSON analysis reports containing project inventory, health indicators, code insights, dependency graph data, and findings with local resolution states.
 
 ## Analysis limits
