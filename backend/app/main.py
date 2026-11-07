@@ -1,4 +1,5 @@
 from collections import Counter
+import hashlib
 from io import BytesIO, StringIO
 from pathlib import PurePosixPath
 import ast
@@ -532,6 +533,8 @@ async def analyze_upload(file: UploadFile = File(...)) -> dict:
                 with archive.open(entry, "r") as source_file:
                     raw = source_file.read(MAX_SOURCE_FILE_BYTES + 1)
                 if len(raw) <= MAX_SOURCE_FILE_BYTES:
+                    # Keep only a one-way fingerprint for snapshot comparisons; never return source text.
+                    file_rows[-1]["content_sha256"] = hashlib.sha256(raw).hexdigest()
                     source_rows.append((normalized, path, raw))
                     source_budget -= len(raw)
         if not file_rows:
