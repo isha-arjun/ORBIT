@@ -203,6 +203,54 @@ def _gdscript_insights(source: str) -> dict:
     }
 
 
+def _project_maintenance_findings(source_rows: list[tuple[str, PurePosixPath, bytes]], insights: list[dict]) -> list[dict]:
+    """Explainable static review candidates; heuristics are never proof."""
+    findings = []
+    sources = {}
+    for normalized, path, raw in source_rows:
+        try:
+            sources[normalized] = raw.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            continue
+    marker_pattern = re.compile(r"\b(TODO|FIXME|HACK|XXX)\b\s*[:：-]?\s*(.*)", re.IGNORECASE)
+    for path, source in sources.items():
+        for number, line in enumerate(source.splitlines(), start=1):
+            match = marker_pattern.search(line)
+            if match:
+                findings.append({"id": f"todo:{path}:{number}", "kind": "todo", "severity": "info" if match.group(1).upper() == "TODO" else "medium", "title": f"{match.group(1).upper()} marker", "detail": (match.group(2).strip() or "Review this marker and decide whether work remains.")[:240], "path": path, "line": number, "evidence": line.strip()[:240], "confidence": "direct"})
+    block_index = {}
+    for path, source in sources.items():
+        lines = source.splitlines()
+        normalized = [re.sub(r"\s+", " ", line.strip()) for line in lines]
+        for start in range(max(0, len(lines) - 5)):
+            block = normalized[start:start + 6]
+            if len(block) == 6 and all(len(line) >= 12 for line in block):
+                block_index.setdefault(tuple(block), []).append((path, start + 1))
+    for index, locations in enumerate(block_index.values()):
+        distinct = []
+        seen = set()
+        for path, line in locations:
+            if path not in seen:
+                distinct.append({"path": path, "line": line})
+                seen.add(path)
+        if len(distinct) >= 2:
+            findings.append({"id": f"duplicate:{index}", "kind": "duplicate_candidate", "severity": "info", "title": "Repeated code block candidate", "detail": "Six consecutive normalized lines match another file. Review whether this is intentional shared logic.", "path": distinct[0]["path"], "line": distinct[0]["line"], "locations": distinct[:8], "confidence": "heuristic"})
+            if len(findings) >= 250:
+                break
+    combined = "\n".join(sources.values())
+    for item in insights:
+        if item.get("status") != "analyzed":
+            continue
+        for symbol in item.get("functions", []):
+            name = symbol.get("name", "")
+            if not name or name.startswith("_") or name in {"main", "setup", "run", "start", "update", "ready", "process", "physics_process"}:
+                continue
+            occurrences = len(re.findall(r"(?<![\w$])" + re.escape(name) + r"(?![\w$])", combined))
+            if occurrences == 1:
+                findings.append({"id": f"unused:{item['path']}:{symbol.get('line', 0)}:{name}", "kind": "unused_candidate", "severity": "info", "title": "Possibly unreferenced function", "detail": "This name appears only at its declaration in analyzed source. Dynamic calls, framework hooks, reflection, or external entry points may still use it.", "path": item["path"], "line": symbol.get("line"), "evidence": f"{name}()", "confidence": "heuristic"})
+    return findings[:300]
+
+
 def _analyze_source(path: PurePosixPath, raw: bytes) -> dict:
     try:
         source = raw.decode("utf-8-sig")
@@ -332,6 +380,7 @@ async def analyze_upload(file: UploadFile = File(...)) -> dict:
                 totals["imports"] += len(insight.get("imports", []))
         code_insights.sort(key=lambda item: item["path"].lower())
         dependency_graph = _build_dependency_graph(code_insights, file_rows)
+        maintenance_findings = _project_maintenance_findings(source_rows, code_insights)
         supported_count = sum(1 for row in file_rows if row["extension"] in SOURCE_EXTENSIONS)
         return {
             "project_name": PurePosixPath(filename).stem[:80] or "Project",
@@ -345,6 +394,7 @@ async def analyze_upload(file: UploadFile = File(...)) -> dict:
                 "supported_languages": ["GDScript", "Python", "JavaScript", "TypeScript"],
                 "limits": {"max_upload_bytes": MAX_UPLOAD_BYTES, "max_uncompressed_bytes": MAX_UNCOMPRESSED_BYTES, "max_source_file_bytes": MAX_SOURCE_FILE_BYTES, "max_total_source_bytes": MAX_SOURCE_ANALYSIS_BYTES},
                 "dependency_graph": dependency_graph,
+                "maintenance_findings": maintenance_findings,
             },
             "safety": {"source_executed": False, "source_contents_read": True, "analysis_mode": "static", "note": "ORBIT read supported source files in memory for static structure analysis. It did not execute code or intentionally store source contents."},
         }
