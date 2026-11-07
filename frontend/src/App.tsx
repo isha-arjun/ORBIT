@@ -129,7 +129,12 @@ function App() {
   }
   async function handleFileChange(event:ChangeEvent<HTMLInputElement>){const file=event.target.files?.[0];event.target.value="";if(file)await analyzeUpload(file);}
   async function importGithubRepository(){
-    const match=githubRepo.trim().match(/^https?:\\/\\/github\\.com\\/([A-Za-z0-9_.-]+)\\/([A-Za-z0-9_.-]+)(?:\\.git)?(?:[/?#].*)?$/i);
+    let parsed: URL;
+    try { parsed = new URL(githubRepo.trim()); } catch { setError("Enter a valid public GitHub repository URL."); return; }
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    if (parsed.hostname.toLowerCase() !== "github.com" || parts.length < 2 || !/^[A-Za-z0-9_.-]+$/.test(parts[0]) || !/^[A-Za-z0-9_.-]+$/.test(parts[1])) { setError("Enter a public GitHub URL, e.g. https://github.com/owner/repository."); return; }
+    const owner = parts[0]; const repository = parts[1].replace(/\\.git$/i, "");
+    const match = [null, owner, repository] as RegExpMatchArray;
     if(!match){setError("Enter a public GitHub URL, e.g. https://github.com/owner/repository.");return;}
     setError("");setIsImportingRepo(true);
     try{const repo=match[2].replace(/\\.git$/i,"");const response=await fetch(`https://api.github.com/repos/${match[1]}/${repo}/zipball`,{headers:{Accept:"application/vnd.github+json"}});
@@ -201,7 +206,7 @@ function App() {
     if(!f.length)f.push({severity:"info",title:"No structural flags detected",detail:"Current static checks found no parsing errors, skipped source files, unresolved local imports, or unusually large files. This is not a guarantee of correctness or security."});return f;},[analysis]);
   const structureScore=Math.max(0,100-healthFindings.reduce((score,item)=>score+(item.severity==="medium"?12:item.title==="No structural flags detected"?0:5),0));
   const graphNodes=useMemo(()=>{if(!dependencyGraph)return[];const names=dependencyGraph.nodes.length?dependencyGraph.nodes:[...new Set(dependencyGraph.edges.flatMap(e=>[e.from,e.to]))];return names.slice(0,28).map((path,index,all)=>{const angle=2*Math.PI*index/Math.max(all.length,1)-Math.PI/2;return{path,x:400+Math.cos(angle)*(all.length>1?178:0),y:245+Math.sin(angle)*(all.length>1?178:0)};});},[dependencyGraph]);
-  const graphPosition=new Map(graphNodes.map(node=>[node.path,node]));
+  const graphPosition=new Map(graphNodes.map(node=>[node.path,node] as const));
   const baseline=savedSnapshots.find(snapshot=>snapshot.id===selectedBaseline);const baselinePaths=new Set(baseline?.files.map(f=>f.path)||[]);const currentPaths=new Set(analysis?.files.map(f=>f.path)||[]);
   const addedFiles=analysis?analysis.files.filter(f=>!baselinePaths.has(f.path)):[];const removedFiles=baseline?baseline.files.filter(f=>!currentPaths.has(f.path)):[];
   const currentEdges=new Set(dependencyGraph?.edges.map(e=>`${e.from}→${e.to}`)||[]);const baselineEdges=new Set(baseline?.edges.map(e=>`${e.from}→${e.to}`)||[]);
