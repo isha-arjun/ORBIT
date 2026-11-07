@@ -384,6 +384,7 @@ async def github_repository_history(payload: dict) -> dict:
             for child in entry:
                 tag = child.tag.rsplit("}", 1)[-1]
                 if tag in {"id", "title", "updated", "content"}:
+                    # Atom elements can contain nested text nodes; preserve all of them.
                     fields[tag] = "".join(child.itertext()).strip()
                 elif tag == "author":
                     author_name = next((part for part in child if part.tag.rsplit("}", 1)[-1] == "name"), None)
