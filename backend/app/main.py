@@ -238,7 +238,7 @@ def _comment_lines(path: str, source: str) -> list[tuple[int, str]]:
                 quote_char = char
                 index += 1
                 while index < len(line):
-                    if line[index] == "\\\\":
+                    if line[index] == "\\":
                         index += 2
                         continue
                     if line[index] == quote_char:
@@ -270,7 +270,7 @@ def _project_maintenance_findings(source_rows: list[tuple[str, PurePosixPath, by
         except UnicodeDecodeError:
             continue
 
-    marker_pattern = re.compile(r"\\b(TODO|FIXME|HACK|XXX)\\b\\s*[:：-]?\\s*(.*)", re.IGNORECASE)
+    marker_pattern = re.compile(r"\b(TODO|FIXME|HACK|XXX)\b\s*[:：-]?\s*(.*)", re.IGNORECASE)
     for path, source in sources.items():
         for number, comment in _comment_lines(path, source):
             match = marker_pattern.search(comment)
@@ -291,7 +291,7 @@ def _project_maintenance_findings(source_rows: list[tuple[str, PurePosixPath, by
     block_index = {}
     for path, source in sources.items():
         lines = source.splitlines()
-        normalized = [re.sub(r"\\s+", " ", line.strip()) for line in lines]
+        normalized = [re.sub(r"\s+", " ", line.strip()) for line in lines]
         for start in range(max(0, len(lines) - 5)):
             block = normalized[start:start + 6]
             if len(block) == 6 and all(len(line) >= 12 for line in block):
@@ -358,9 +358,9 @@ async def github_repository_history(payload: dict) -> dict:
                 raise HTTPException(status_code=429, detail="GitHub is temporarily limiting history lookup.")
             if page.status_code != 200:
                 raise HTTPException(status_code=502, detail="GitHub repository page could not be opened.")
-            branch_match = re.search(r'"defaultBranch"\\s*:\\s*"([^"]+)"', page.text)
+            branch_match = re.search(r'"defaultBranch"\s*:\s*"([^"]+)"', page.text)
             if not branch_match:
-                branch_match = re.search(r'defaultBranch\\s*[:=]\\s*["\\\\]([^"\\\\]+)', page.text)
+                branch_match = re.search(r'defaultBranch\s*[:=]\s*["\\]([^"\\]+)', page.text)
             if not branch_match:
                 raise HTTPException(status_code=502, detail="ORBIT could not identify the repository's default branch.")
             branch = quote(branch_match.group(1), safe="")
