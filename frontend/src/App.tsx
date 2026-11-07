@@ -223,13 +223,13 @@ function App() {
     <main className="shell">
       <header className="topbar">
         <a className="wordmark" href="/" aria-label="ORBIT home"><span className="wordmark-mark">O</span>ORBIT</a>
-        <span className="topbar-label">DEVELOPER INTELLIGENCE</span>
+        <span className="topbar-label">DEVELOPER INTELLIGENCE / STATIC ANALYSIS</span>
       </header>
 
       <section className="hero">
         <p className="eyebrow">YOUR CODEBASE, UNDERSTOOD</p>
         <h1>See the structure<br />behind your software.</h1>
-        <p className="intro">Map a project, identify its languages, and explore its structure — without executing its code.</p>
+        <p className="intro">Understand architecture, inspect code structure, spot maintenance risks, and track how projects evolve — without executing uploaded code.</p>
         <div className={`status status-${apiState}`} role="status" aria-live="polite"><span className="status-dot" />{statusLabel}</div>
       </section>
 
@@ -250,7 +250,7 @@ function App() {
           <span>{isAnalyzing ? "Reading archive structure" : "Select a project ZIP · Maximum 50 MB"}</span>
           <span className="upload-action">{isAnalyzing ? "PLEASE WAIT" : "SELECT PROJECT"}</span>
         </label>
-        <p className="upload-guidance">Godot tip: ZIP the project folder containing project.godot. ORBIT skips the generated .godot cache automatically. Keep the ZIP under 50 MB.</p>
+        <div className="github-import"><span className="github-import-label">OR IMPORT A PUBLIC REPOSITORY</span><div className="github-import-row"><input value={githubRepo} onChange={event=>setGithubRepo(event.target.value)} placeholder="https://github.com/owner/repository" aria-label="Public GitHub repository URL"/><button type="button" onClick={importGithubRepository} disabled={isImportingRepo||isAnalyzing||apiState!=="online"}>{isImportingRepo?"IMPORTING…":"IMPORT GITHUB"}</button></div><p>Public repositories only. Private repositories are not accessed; no GitHub token is requested.</p></div><p className="upload-guidance">Godot tip: ZIP the project folder containing project.godot. ORBIT skips the generated .godot cache automatically. Keep the ZIP under 50 MB.</p>
         {apiState !== "online" && <p className="helper-text">The analyzer becomes available when the backend is connected.</p>}
         {error && <p className="error-message" role="alert">{error}</p>}
 
@@ -261,7 +261,7 @@ function App() {
               <span className="complete-tag">INVENTORY READY</span>
             </div>
 
-            <div className="metric-grid">
+            <div className="workspace-actions"><button type="button" onClick={saveCurrentSnapshot}>Save snapshot</button><button type="button" onClick={exportReport}>Export report</button><span>Snapshots stay in this browser · up to 20 versions</span></div><nav className="workspace-nav" aria-label="Project workspace"><a href="#project-health">Health</a><a href="#project-explorer">Explorer</a><a href="#architecture-map">Architecture</a><a href="#project-issues">Issues</a><a href="#project-history">History</a></nav><section className="health-overview" id="project-health"><div className="health-score"><span className="detail-kicker">STRUCTURE HEALTH ESTIMATE</span><strong>{structureScore}<small>/100</small></strong><span>Heuristic indicator · not a quality or security grade</span></div><div className="health-summary"><h4>Project health</h4><p>Signals come from static inventory and parser output. Review findings in context; a clean scan does not prove code is correct.</p><div className="health-pills"><span>{healthFindings.filter(item=>item.severity==="medium").length} review flags</span><span>{healthFindings.filter(item=>item.severity==="info").length} observations</span></div></div></section><div className="metric-grid">
               <div className="metric"><strong>{analysis.summary.files_scanned.toLocaleString()}</strong><span>Files scanned</span></div>
               <div className="metric"><strong>{analysis.summary.folders_found.toLocaleString()}</strong><span>Folders found</span></div>
               <div className="metric"><strong>{analysis.summary.languages_detected}</strong><span>Languages</span></div>
@@ -288,7 +288,7 @@ function App() {
               </section>
             </div>
 
-            <section className="explorer-panel">
+            <section className="explorer-panel" id="project-explorer">
               <div className="explorer-heading">
                 <div><p className="eyebrow">INTERACTIVE EXPLORER</p><h4>Project files</h4></div>
                 <span className="explorer-count">{filteredFiles.length} / {analysis.files.length} files</span>
@@ -394,7 +394,7 @@ function App() {
             </section>
 
             {dependencyGraph && (
-              <section className="dependency-panel">
+              <section className="dependency-panel" id="architecture-map">
                 <div className="explorer-heading">
                   <div><p className="eyebrow">PROJECT CONNECTIONS</p><h4>Dependency map</h4></div>
                   <span className="explorer-count">{dependencyGraph.summary.internal_dependencies} internal links</span>
@@ -405,6 +405,10 @@ function App() {
                   <div><strong>{dependencyGraph.summary.files_with_dependencies}</strong><span>Files importing others</span></div>
                   <div><strong>{dependencyGraph.summary.unresolved_relative_imports}</strong><span>Unresolved local imports</span></div>
                 </div>
+                <div className="architecture-graph"><div className="graph-caption"><strong>Architecture overview</strong><span>Up to 28 files and 70 connections · select a node to inspect it</span></div>{graphNodes.length?<svg viewBox="0 0 800 490" role="img" aria-label="Interactive project dependency graph">
+{dependencyGraph.edges.slice(0,70).map(edge=>{const from=graphPosition.get(edge.from);const to=graphPosition.get(edge.to);return from&&to?<line key={edge.from+edge.to+edge.specifier} x1={from.x} y1={from.y} x2={to.x} y2={to.y} className="graph-edge"/>:null;})}
+{graphNodes.map(node=>{const file=analysis.files.find(item=>item.path===node.path);const active=selectedFile?.path===node.path;return <g key={node.path} className={`graph-node ${active?"active":""}`} role="button" tabIndex={0} aria-label={`Select ${node.path}`} onClick={()=>file&&setSelectedFile(file)} onKeyDown={event=>{if((event.key==="Enter"||event.key===" ")&&file)setSelectedFile(file);}}><circle cx={node.x} cy={node.y} r={active?9:7}/><text x={node.x} y={node.y-13} textAnchor="middle">{node.path.split("/").pop()?.slice(0,22)}</text></g>;})}
+</svg>:<p className="insight-empty">No resolved internal dependency edges were found. The graph appears when ORBIT can link local imports between files.</p>}</div>
                 {selectedFile ? (
                   <div className="dependency-columns">
                     <div className="dependency-list">
@@ -431,7 +435,12 @@ function App() {
               </section>
             )}
 
-            <p className="safety-note">✓ {analysis.safety.note}</p>
+            <section className="issues-panel" id="project-issues"><div className="explorer-heading"><div><p className="eyebrow">STATIC REVIEW</p><h4>Maintenance signals</h4></div><span className="explorer-count">{healthFindings.length} findings</span></div><div className="finding-list">{healthFindings.map((finding,index)=><article className={`finding-card finding-${finding.severity}`} key={finding.title+index}><span className="finding-severity">{finding.severity==="medium"?"REVIEW":"INFO"}</span><div><strong>{finding.title}</strong><p>{finding.detail}</p>{finding.path&&<code>{finding.path}</code>}</div></article>)}</div><p className="explorer-footnote">Structural maintenance hints only, not security findings. ORBIT does not execute uploaded code or perform a full vulnerability audit.</p></section>
+<section className="history-panel" id="project-history"><div className="explorer-heading"><div><p className="eyebrow">PROJECT HISTORY</p><h4>Snapshots & version comparison</h4></div><span className="explorer-count">{savedSnapshots.length} saved snapshots</span></div>
+{savedSnapshots.length?<><div className="history-controls"><select value={selectedBaseline} onChange={event=>setSelectedBaseline(event.target.value)} aria-label="Choose a saved snapshot to compare"><option value="">Choose a previous snapshot to compare</option>{savedSnapshots.map(snapshot=><option key={snapshot.id} value={snapshot.id}>{snapshot.project_name} · {new Date(snapshot.savedAt).toLocaleString()}</option>)}</select></div>
+{baseline?<><div className="comparison-grid"><div><strong>{addedFiles.length}</strong><span>Added files</span></div><div><strong>{removedFiles.length}</strong><span>Removed files</span></div><div><strong>{addedEdges.length}</strong><span>New dependencies</span></div><div><strong>{removedEdges.length}</strong><span>Removed dependencies</span></div></div><div className="comparison-details"><div><h5>Added files</h5>{addedFiles.slice(0,12).map(file=><code key={file.path}>+ {file.path}</code>)}{!addedFiles.length&&<span>None</span>}</div><div><h5>Removed files</h5>{removedFiles.slice(0,12).map(file=><code key={file.path}>− {file.path}</code>)}{!removedFiles.length&&<span>None</span>}</div><div><h5>Dependency changes</h5>{addedEdges.slice(0,12).map(edge=><code key={edge}>+ {edge}</code>)}{removedEdges.slice(0,12).map(edge=><code key={edge}>− {edge}</code>)}{!addedEdges.length&&!removedEdges.length&&<span>None detected</span>}</div></div></>:<p className="insight-empty">Save this analysis and another version, then select a previous snapshot to compare structural changes.</p>}
+<div className="saved-snapshot-list">{savedSnapshots.slice(0,10).map(snapshot=><div key={snapshot.id}><span><strong>{snapshot.project_name}</strong><small>{new Date(snapshot.savedAt).toLocaleString()}</small></span><span>{snapshot.summary.files_scanned.toLocaleString()} files</span></div>)}</div></>:<p className="insight-empty">No saved versions yet. Use “Save snapshot” after analyzing a project to start tracking its structure over time.</p>}
+<p className="explorer-footnote">Snapshots are stored in this browser only. They are not synced across devices or sent to GitHub.</p></section><p className="safety-note">✓ {analysis.safety.note}</p>
           </div>
         )}
       </section>
@@ -440,7 +449,7 @@ function App() {
         <article className="feature-card"><span className="feature-number">01</span><h2>Project explorer</h2><p>Search, filter, and navigate folders and files in an interactive workspace.</p></article>
         <article className="feature-card"><span className="feature-number">02</span><h2>Language profile</h2><p>Understand which languages and file types make up a project.</p></article>
         <article className="feature-card"><span className="feature-number">03</span><h2>Code insights</h2><p>Inspect functions, classes, imports, and basic structural metrics in supported source files.</p></article>
-        <article className="feature-card"><span className="feature-number">04</span><h2>Dependency map</h2><p>Trace resolved internal imports and see which files rely on one another.</p></article>
+        <article className="feature-card"><span className="feature-number">04</span><h2>Architecture & history</h2><p>Explore file relationships, save snapshots, and compare project structure over time.</p></article>
       </section>
 
       <footer><span>ORBIT / EARLY BUILD</span><span>Designed to inspect, never execute.</span></footer>
