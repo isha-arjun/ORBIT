@@ -6,6 +6,7 @@ from backend.app.main import (
     _analyze_source,
     _build_dependency_graph,
     _comment_lines,
+    _content_fingerprint,
     _gdscript_insights,
     _javascript_insights,
     _language_for,
@@ -85,8 +86,9 @@ class ContentFingerprintTests(unittest.TestCase):
         original = b"def greet(): return 1\n"
         same = b"def greet(): return 1\n"
         changed = b"def greet(): return 2\n"
-        self.assertEqual(hashlib.sha256(original).hexdigest(), hashlib.sha256(same).hexdigest())
-        self.assertNotEqual(hashlib.sha256(original).hexdigest(), hashlib.sha256(changed).hexdigest())
+        self.assertEqual(_content_fingerprint(original), _content_fingerprint(same))
+        self.assertNotEqual(_content_fingerprint(original), _content_fingerprint(changed))
+        self.assertEqual(len(_content_fingerprint(original)), 64)
 
 
 class DependencyAndFindingTests(unittest.TestCase):
