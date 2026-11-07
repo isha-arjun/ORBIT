@@ -38,3 +38,22 @@ Python files use the standard-library AST parser. JavaScript and TypeScript use 
 The ZIP is transmitted to the ORBIT API on Render. Supported source files are read in memory for static analysis; the application does not intentionally persist source contents. Remove credentials, tokens, private keys, and other sensitive material before creating the ZIP. Public GitHub archives are fetched server-side by the analyzer API; recent commit metadata is fetched from GitHub for the timeline. ORBIT never executes uploaded project code and does not send source code to third-party AI services.
 
 Saved snapshots are stored in the current browser's local storage. They are not cloud-synced and may be cleared when browser site data is removed.
+
+## Development checks
+
+Run the backend regression suite from the repository root:
+
+```bash
+python -m pip install -r backend/requirements.txt
+python -m unittest discover -s backend/tests -v
+```
+
+Build and type-check the frontend:
+
+```bash
+cd frontend
+npm install
+npm run build
+```
+
+GitHub Actions runs both checks for pushes to `main` and pull requests targeting `main`.
