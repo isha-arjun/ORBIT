@@ -364,11 +364,12 @@ async def github_repository_history(payload: dict) -> dict:
                 branch_match = re.search(r'defaultBranch\s*[:=]\s*["\\]([^"\\]+)', page.text)
             if not branch_match:
                 raise HTTPException(status_code=502, detail="ORBIT could not identify the repository's default branch.")
-            branch = quote(branch_match.group(1), safe="")
+            default_branch = branch_match.group(1)
+            branch = quote(default_branch, safe="")
             feed_url = f"https://github.com/{owner}/{repository}/commits/{branch}.atom"
             feed = await client.get(feed_url, headers=headers)
             if feed.status_code == 404:
-                return {"repository": owner + "/" + repository, "commits": []}
+                return {"repository": owner + "/" + repository, "default_branch": default_branch, "commits": []}
             if feed.status_code in {403, 429}:
                 raise HTTPException(status_code=429, detail="GitHub is temporarily limiting history lookup.")
             if feed.status_code != 200:
@@ -408,7 +409,7 @@ async def github_repository_history(payload: dict) -> dict:
             })
             if len(commits) >= 15:
                 break
-        return {"repository": owner + "/" + repository, "commits": commits}
+        return {"repository": owner + "/" + repository, "default_branch": default_branch, "commits": commits}
     except HTTPException:
         raise
     except ET.ParseError:
