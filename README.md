@@ -20,6 +20,7 @@ ORBIT is a cloud-hosted developer intelligence workspace. It creates a structura
 - Recent public GitHub commit history via the repository's Atom feed, avoiding the unauthenticated GitHub REST API quota, with in-workspace search and manual refresh.
 - Up to five recently imported public repositories remembered locally for quick re-entry.
 - Local project snapshots and comparisons of added/removed files, modified source files (using SHA-256 fingerprints, not retained source text), dependency edges, and detected functions/classes/signals; up to 20 snapshots are retained in the current browser.
+- Snapshot change-impact review: traces direct and transitive dependents of changed files using the union of baseline and current dependency edges, then surfaces findings attached to changed or connected files. This is a static review estimate, not a regression prediction; incomplete fingerprints can make modified-file impact incomplete.
 - Downloadable versioned JSON analysis reports containing project inventory, health indicators, code insights, dependency graph data, and findings with local resolution states.
 
 ## Analysis limits
