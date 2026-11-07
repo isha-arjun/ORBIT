@@ -1,4 +1,5 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { compareSnapshotFiles } from "./snapshotComparison.mjs";
 
 type ApiState = "checking" | "online" | "offline";
 type ApiVersion = { commit?:string; branch?:string; version?:string };
@@ -356,15 +357,10 @@ function App() {
 
   const graphNodes=useMemo(()=>{if(!dependencyGraph)return[];const names=dependencyGraph.nodes.length?dependencyGraph.nodes:[...new Set(dependencyGraph.edges.flatMap(e=>[e.from,e.to]))];return names.slice(0,28).map((path,index,all)=>{const angle=2*Math.PI*index/Math.max(all.length,1)-Math.PI/2;return{path,x:400+Math.cos(angle)*(all.length>1?178:0),y:245+Math.sin(angle)*(all.length>1?178:0)};});},[dependencyGraph]);
   const graphPosition=new Map(graphNodes.map(node=>[node.path,node] as const));
-  const baseline=savedSnapshots.find(snapshot=>snapshot.id===selectedBaseline&&snapshot.project_name===analysis?.project_name);const baselinePaths=new Set(baseline?.files.map(f=>f.path)||[]);const currentPaths=new Set(analysis?.files.map(f=>f.path)||[]);
-  const addedFiles=analysis?analysis.files.filter(f=>!baselinePaths.has(f.path)):[];const removedFiles=baseline?baseline.files.filter(f=>!currentPaths.has(f.path)):[];
-  const currentFilesByPath=new Map<string,ProjectFile>((analysis?.files||[]).map(file=>[file.path,file] as const));
-  const fingerprintExtensions=new Set([".py",".pyi",".js",".jsx",".mjs",".cjs",".ts",".tsx",".gd"]);
-  const baselineSourceFiles=baseline?.files.filter(file=>fingerprintExtensions.has(file.extension))||[];
-  const currentSourceFiles=(analysis?.files||[]).filter(file=>fingerprintExtensions.has(file.extension));
-  const sharedBaselineSourceFiles=baselineSourceFiles.filter(file=>currentFilesByPath.has(file.path));
-  const modifiedFiles=sharedBaselineSourceFiles.filter(file=>{const current=currentFilesByPath.get(file.path);return Boolean(file.content_sha256&&current?.content_sha256&&file.content_sha256!==current.content_sha256);});
-  const modifiedFilesComparable=Boolean(baseline&&analysis&&(!baselineSourceFiles.length||!currentSourceFiles.length||!sharedBaselineSourceFiles.length||sharedBaselineSourceFiles.every(file=>Boolean(file.content_sha256&&currentFilesByPath.get(file.path)?.content_sha256))));
+  const baseline=savedSnapshots.find(snapshot=>snapshot.id===selectedBaseline&&snapshot.project_name===analysis?.project_name);
+  const fileComparison=baseline&&analysis?compareSnapshotFiles(baseline.files,analysis.files):{addedFiles:[],removedFiles:[],modifiedFiles:[],comparable:false};
+  const {addedFiles,removedFiles,modifiedFiles}=fileComparison;
+  const modifiedFilesComparable=Boolean(baseline&&analysis&&fileComparison.comparable);
   const currentEdges=new Set(dependencyGraph?.edges.map(e=>`${e.from}→${e.to}`)||[]);const baselineEdges=new Set(baseline?.edges.map(e=>`${e.from}→${e.to}`)||[]);
   const addedEdges=[...currentEdges].filter(e=>!baselineEdges.has(e));const removedEdges=[...baselineEdges].filter(e=>!currentEdges.has(e));
   const currentSymbols=collectSymbols(analysis?.code_insights?.files);
