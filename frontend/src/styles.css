@@ -785,3 +785,22 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;op
 :root[data-theme="light"] .finding-search input::placeholder{color:#8a98ad}
 :root[data-theme="light"] .finding-severity-filter{border-color:rgba(43,67,105,.16);background:#fff;color:#526782}
 @media(max-width:650px){.finding-tools{width:100%;max-width:none}.finding-severity-filter{max-width:145px}}
+
+.change-impact-panel { margin-top: 16px; padding: 18px; border: 1px solid rgba(142,184,255,.18); border-radius: 12px; background: rgba(105,146,214,.045); }
+.change-impact-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.change-impact-heading h5 { margin: 0 0 6px; font-size: 13px; }
+.change-impact-heading p { margin: 0; max-width: 560px; color: #8f9db2; font-size: 11px; line-height: 1.6; }
+.change-impact-heading > span { color: #91b9ff; font-size: 11px; white-space: nowrap; }
+.change-impact-stats { display: flex; flex-wrap: wrap; gap: 18px; margin: 15px 0; color: #8491a7; font-size: 10px; }
+.change-impact-stats strong { color: #dce7f8; font-size: 16px; margin-right: 4px; }
+.change-impact-list { display: grid; gap: 6px; }
+.change-impact-list button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 10px 11px; border: 1px solid rgba(255,255,255,.07); border-radius: 8px; background: rgba(255,255,255,.025); color: #cbd6e6; text-align: left; cursor: pointer; }
+.change-impact-list button:hover:not(:disabled) { border-color: rgba(142,184,255,.35); background: rgba(105,146,214,.08); }
+.change-impact-list button:disabled { cursor: default; opacity: .7; }
+.change-impact-list button span { display: grid; gap: 4px; min-width: 0; }
+.change-impact-list code { overflow-wrap: anywhere; color: #dce8ff; font-size: 11px; }
+.change-impact-list small { color: #8491a7; font-size: 10px; }
+.change-impact-list b { color: #91b9ff; font-size: 10px; font-weight: 600; white-space: nowrap; }
+.change-impact-findings { display: grid; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.08); }
+.change-impact-findings strong { color: #cbd6e6; font-size: 11px; }
+.change-impact-findings span { color: #9ca8bb; font-size: 10px; overflow-wrap: anywhere; }
