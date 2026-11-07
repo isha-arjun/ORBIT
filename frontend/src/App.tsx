@@ -85,6 +85,58 @@ function normalizeFolder(folder: string): string {
   return folder.replace(/\/+$/, "");
 }
 
+type ArchitectureHotspot = { path:string; incoming:number; outgoing:number };
+type ArchitectureInsights = { hotspots:ArchitectureHotspot[]; cycles:string[][]; connectedFiles:number };
+
+function deriveArchitectureInsights(graph:DependencyGraph):ArchitectureInsights{
+  const nodes=[...new Set(graph.nodes)];
+  const adjacency=new Map(nodes.map(node=>[node,[] as string[]]));
+  const reverse=new Map(nodes.map(node=>[node,[] as string[]]));
+  const incoming=new Map(nodes.map(node=>[node,0]));
+  const outgoing=new Map(nodes.map(node=>[node,0]));
+  for(const edge of graph.edges){
+    if(!adjacency.has(edge.from)){adjacency.set(edge.from,[]);reverse.set(edge.from,[]);incoming.set(edge.from,0);outgoing.set(edge.from,0);nodes.push(edge.from);}
+    if(!adjacency.has(edge.to)){adjacency.set(edge.to,[]);reverse.set(edge.to,[]);incoming.set(edge.to,0);outgoing.set(edge.to,0);nodes.push(edge.to);}
+    adjacency.get(edge.from)!.push(edge.to);
+    reverse.get(edge.to)!.push(edge.from);
+    outgoing.set(edge.from,(outgoing.get(edge.from)||0)+1);
+    incoming.set(edge.to,(incoming.get(edge.to)||0)+1);
+  }
+  const visited=new Set<string>();
+  const order:string[]=[];
+  for(const start of nodes){
+    if(visited.has(start))continue;
+    visited.add(start);
+    const stack:{node:string;index:number}[]=[{node:start,index:0}];
+    while(stack.length){
+      const frame=stack[stack.length-1];
+      const neighbors=adjacency.get(frame.node)||[];
+      if(frame.index<neighbors.length){
+        const next=neighbors[frame.index++];
+        if(!visited.has(next)){visited.add(next);stack.push({node:next,index:0});}
+      }else{order.push(frame.node);stack.pop();}
+    }
+  }
+  const assigned=new Set<string>();
+  const cycles:string[][]=[];
+  for(let i=order.length-1;i>=0;i--){
+    const start=order[i];
+    if(assigned.has(start))continue;
+    const component:string[]=[];
+    const stack=[start];assigned.add(start);
+    while(stack.length){
+      const node=stack.pop()!;component.push(node);
+      for(const next of reverse.get(node)||[])if(!assigned.has(next)){assigned.add(next);stack.push(next);}
+    }
+    if(component.length>1)cycles.push(component.sort((a,b)=>a.localeCompare(b)));
+  }
+  const hotspots=nodes.map(path=>({path,incoming:incoming.get(path)||0,outgoing:outgoing.get(path)||0}))
+    .filter(item=>item.incoming+item.outgoing>0)
+    .sort((a,b)=>(b.incoming+b.outgoing)-(a.incoming+a.outgoing)||b.incoming-a.incoming||a.path.localeCompare(b.path))
+    .slice(0,5);
+  return{hotspots,cycles:cycles.sort((a,b)=>b.length-a.length).slice(0,5),connectedFiles:nodes.filter(path=>(incoming.get(path)||0)+(outgoing.get(path)||0)>0).length};
+}
+
 function App() {
   const [apiState, setApiState] = useState<ApiState>("checking");
   const [theme,setTheme] = useState<"dark"|"light">(()=>{try{return localStorage.getItem("orbit-theme-v1")==="light"?"light":"dark"}catch{return"dark"}});
@@ -266,6 +318,7 @@ function App() {
     [analysis, selectedFile],
   );
   const dependencyGraph = codeInsights.dependency_graph;
+  const architectureInsights=useMemo(()=>dependencyGraph?deriveArchitectureInsights(dependencyGraph):null,[dependencyGraph]);
   const selectedOutgoing = dependencyGraph?.edges.filter((edge) => edge.from === selectedFile?.path) || [];
   const selectedIncoming = dependencyGraph?.edges.filter((edge) => edge.to === selectedFile?.path) || [];
   const healthFindings=useMemo<HealthFinding[]>(()=>{if(!analysis)return[];const f:HealthFinding[]=[];const insights=analysis.code_insights;const parse=insights?.files.filter(x=>x.status==="parse_error")||[];const skipped=insights?.summary.source_files_skipped_or_over_limit||0;const unresolved=insights?.dependency_graph?.summary.unresolved_relative_imports||0;const complex=(insights?.files||[]).filter(x=>(x.complexity_estimate||0)>=15);const large=analysis.files.filter(x=>x.size_bytes>=100*1024);
@@ -485,6 +538,7 @@ function App() {
                   <div><strong>{dependencyGraph.summary.files_with_dependencies}</strong><span>Files importing others</span></div>
                   <div><strong>{dependencyGraph.summary.unresolved_relative_imports}</strong><span>Unresolved local imports</span></div>
                 </div>
+                {architectureInsights&&<div className="architecture-insights"><div className="architecture-insights-heading"><span className="detail-kicker">ARCHITECTURE SIGNALS</span><span>{architectureInsights.connectedFiles} connected files</span></div><div className="architecture-insights-grid"><div className="architecture-signal"><h5>High-connectivity files</h5>{architectureInsights.hotspots.length?architectureInsights.hotspots.slice(0,4).map(item=><button type="button" key={item.path} onClick={()=>{const file=analysis.files.find(candidate=>candidate.path===item.path);if(file){setSelectedFile(file);document.getElementById("project-explorer")?.scrollIntoView({behavior:"smooth",block:"start"});}}}><code>{item.path}</code><span><b>{item.incoming}</b> in · <b>{item.outgoing}</b> out</span></button>):<p className="symbol-empty">No resolved connections yet.</p>}</div><div className="architecture-signal"><h5>Dependency cycles <span>{architectureInsights.cycles.length}</span></h5>{architectureInsights.cycles.length?architectureInsights.cycles.slice(0,3).map((cycle,index)=><div className="cycle-candidate" key={cycle.join("|")}><strong>Cycle candidate {index+1}</strong><span>{cycle.map(path=>path.split("/").pop()).join(" ↔ ")}</span><small>{cycle.length} files in this strongly connected group · inspect imports before refactoring</small></div>):<p className="symbol-empty">No multi-file cycles detected in resolved internal imports.</p>}</div></div><p className="explorer-footnote">Connectivity is based on resolved static imports, not runtime calls. Cycle groups indicate files that can reach one another through imports; they are review signals, not necessarily defects.</p></div>}
                 <div className="architecture-graph"><div className="graph-caption"><strong>Architecture overview</strong><span>Up to 28 files and 70 connections · select a node to inspect it</span></div>{graphNodes.length?<svg viewBox="0 0 800 490" role="img" aria-label="Interactive project dependency graph">
 {dependencyGraph.edges.slice(0,70).map(edge=>{const from=graphPosition.get(edge.from);const to=graphPosition.get(edge.to);return from&&to?<line key={edge.from+edge.to+edge.specifier} x1={from.x} y1={from.y} x2={to.x} y2={to.y} className="graph-edge"/>:null;})}
 {graphNodes.map(node=>{const file=analysis.files.find(item=>item.path===node.path);const active=selectedFile?.path===node.path;return <g key={node.path} className={`graph-node ${active?"active":""}`} role="button" tabIndex={0} aria-label={`Select ${node.path}`} onClick={()=>file&&setSelectedFile(file)} onKeyDown={event=>{if((event.key==="Enter"||event.key===" ")&&file)setSelectedFile(file);}}><circle cx={node.x} cy={node.y} r={active?9:7}/><text x={node.x} y={node.y-13} textAnchor="middle">{node.path.split("/").pop()?.slice(0,22)}</text></g>;})}
