@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 from pathlib import PurePosixPath
 
 from backend.app.main import (
@@ -13,7 +14,24 @@ from backend.app.main import (
     _python_insights,
     _resolve_js_dependency,
     _safe_archive_path,
+    version_info,
 )
+
+
+class VersionEndpointTests(unittest.TestCase):
+    def test_reports_render_commit_and_branch_without_exposing_other_environment(self):
+        with patch.dict("os.environ", {"RENDER_GIT_COMMIT": "a" * 40, "RENDER_GIT_BRANCH": "main"}, clear=True):
+            result = version_info()
+        self.assertEqual(result["service"], "orbit-api")
+        self.assertEqual(result["commit"], "a" * 40)
+        self.assertEqual(result["branch"], "main")
+        self.assertNotIn("environment", result)
+
+    def test_version_falls_back_when_render_metadata_is_unavailable(self):
+        with patch.dict("os.environ", {}, clear=True):
+            result = version_info()
+        self.assertEqual(result["commit"], "unknown")
+        self.assertEqual(result["branch"], "unknown")
 
 
 class ArchivePathTests(unittest.TestCase):
