@@ -364,6 +364,7 @@ async def github_repository_history(payload: dict) -> dict:
                 branch_match = re.search(r'defaultBranch\s*[:=]\s*["\\]([^"\\]+)', page.text)
             if not branch_match:
                 raise HTTPException(status_code=502, detail="ORBIT could not identify the repository's default branch.")
+            # Expose the selected branch so the UI can label the commit timeline.
             default_branch = branch_match.group(1)
             branch = quote(default_branch, safe="")
             feed_url = f"https://github.com/{owner}/{repository}/commits/{branch}.atom"
