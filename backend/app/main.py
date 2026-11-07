@@ -7,6 +7,8 @@ import re
 import stat
 import zipfile
 
+import httpx
+
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -213,6 +215,49 @@ def _analyze_source(path: PurePosixPath, raw: bytes) -> dict:
     if path.suffix.lower() == ".gd":
         return _gdscript_insights(source)
     return _javascript_insights(source)
+
+@app.post("/analyze/github")
+async def analyze_github_repository(payload: dict) -> dict:
+    owner = str(payload.get("owner", "")).strip()
+    repository = str(payload.get("repository", "")).strip()
+    valid_part = re.compile(r"^[A-Za-z0-9_.-]{1,100}$")
+    if not valid_part.fullmatch(owner) or not valid_part.fullmatch(repository) or owner in {".", ".."} or repository in {".", ".."}:
+        raise HTTPException(status_code=400, detail="Enter a valid public GitHub repository.")
+    if repository.lower().endswith(".git"):
+        repository = repository[:-4]
+    archive_url = f"https://api.github.com/repos/{owner}/{repository}/zipball"
+    chunks = []
+    total_bytes = 0
+    try:
+        timeout = httpx.Timeout(45.0, connect=10.0)
+        async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
+            async with client.stream(
+                "GET",
+                archive_url,
+                headers={"Accept": "application/vnd.github+json", "User-Agent": "ORBIT-Developer-Intelligence"},
+            ) as response:
+                if response.status_code == 404:
+                    raise HTTPException(status_code=404, detail="Repository not found or not public.")
+                if response.status_code == 403:
+                    raise HTTPException(status_code=429, detail="GitHub temporarily rate-limited this import. Try again later or upload a ZIP.")
+                if response.status_code != 200:
+                    raise HTTPException(status_code=502, detail=f"GitHub could not provide this repository archive (HTTP {response.status_code}).")
+                async for chunk in response.aiter_bytes():
+                    total_bytes += len(chunk)
+                    if total_bytes > MAX_UPLOAD_BYTES:
+                        raise HTTPException(status_code=413, detail="This repository archive exceeds ORBIT's 50 MB upload limit.")
+                    chunks.append(chunk)
+    except HTTPException:
+        raise
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="GitHub took too long to provide the repository archive. Try again.")
+    except httpx.HTTPError:
+        raise HTTPException(status_code=502, detail="ORBIT could not reach GitHub. Please try again or upload a ZIP.")
+    if not chunks:
+        raise HTTPException(status_code=400, detail="GitHub returned an empty repository archive.")
+    archive_upload = UploadFile(file=BytesIO(b"".join(chunks)), filename=f"{repository}.zip")
+    return await analyze_upload(archive_upload)
+
 
 @app.post("/analyze/upload")
 async def analyze_upload(file: UploadFile = File(...)) -> dict:
