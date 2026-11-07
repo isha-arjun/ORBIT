@@ -33,9 +33,9 @@ class LanguageAndParserTests(unittest.TestCase):
 
     def test_python_ast_extracts_symbols_and_imports(self):
         result = _python_insights(
-            "import json\\nfrom pathlib import Path\\n"
-            "class Worker:\\n    pass\\n"
-            "async def run_job():\\n    if True:\\n        return Path('x')\\n"
+            "import json\nfrom pathlib import Path\n"
+            "class Worker:\n    pass\n"
+            "async def run_job():\n    if True:\n        return Path('x')\n"
         )
         self.assertEqual(result["status"], "analyzed")
         self.assertEqual([item["name"] for item in result["classes"]], ["Worker"])
@@ -43,16 +43,16 @@ class LanguageAndParserTests(unittest.TestCase):
         self.assertEqual(result["imports"], ["json", "pathlib"])
 
     def test_python_syntax_error_is_reported_without_crashing(self):
-        result = _python_insights("def broken(:\\n    pass")
+        result = _python_insights("def broken(:\n    pass")
         self.assertEqual(result["status"], "parse_error")
         self.assertIn("line 1", result["error"])
 
     def test_javascript_scanner_ignores_function_text_in_comments_and_strings(self):
         source = (
-            "// function commentedOut() {}\\n"
-            "const example = 'function insideString() {}';\\n"
-            "export async function loadProject() { return true; }\\n"
-            "class ProjectStore {}\\n"
+            "// function commentedOut() {}\n"
+            "const example = 'function insideString() {}';\n"
+            "export async function loadProject() { return true; }\n"
+            "class ProjectStore {}\n"
             "import React from 'react';"
         )
         result = _javascript_insights(source)
@@ -65,8 +65,8 @@ class LanguageAndParserTests(unittest.TestCase):
 
     def test_gdscript_scanner_finds_functions_signals_and_resources(self):
         result = _gdscript_insights(
-            'extends Node\\nsignal completed\\nclass_name Runner\\n'
-            'func start():\\n    var scene = preload("res://levels/one.tscn")\\n'
+            'extends Node\nsignal completed\nclass_name Runner\n'
+            'func start():\n    var scene = preload("res://levels/one.tscn")\n'
         )
         self.assertEqual(result["status"], "analyzed")
         self.assertIn("start", [item["name"] for item in result["functions"]])
@@ -75,7 +75,7 @@ class LanguageAndParserTests(unittest.TestCase):
         self.assertIn("res://levels/one.tscn", result["imports"])
 
     def test_binary_source_is_skipped(self):
-        result = _analyze_source(PurePosixPath("main.py"), b"\\xff\\xfe\\x00")
+        result = _analyze_source(PurePosixPath("main.py"), b"\xff\xfe\x00")
         self.assertEqual(result["status"], "skipped_binary")
 
 
@@ -96,7 +96,7 @@ class DependencyAndFindingTests(unittest.TestCase):
         self.assertEqual(graph["edges"][0]["to"], "src/App.tsx")
 
     def test_todo_in_comments_is_found_but_string_marker_is_ignored(self):
-        source = b'# TODO: finish this\\nmessage = "TODO: just an example"\\n'
+        source = b'# TODO: finish this\nmessage = "TODO: just an example"\n'
         rows = [("main.py", PurePosixPath("main.py"), source)]
         findings = _project_maintenance_findings(rows, [])
         self.assertEqual(len(findings), 1)
@@ -104,7 +104,7 @@ class DependencyAndFindingTests(unittest.TestCase):
         self.assertEqual(findings[0]["line"], 1)
 
     def test_python_comment_scanner_ignores_string_literals(self):
-        comments = _comment_lines("sample.py", 'text = "# TODO: not a comment"\\n# FIXME: real issue')
+        comments = _comment_lines("sample.py", 'text = "# TODO: not a comment"\n# FIXME: real issue')
         self.assertEqual(len(comments), 1)
         self.assertIn("FIXME", comments[0][1])
 
