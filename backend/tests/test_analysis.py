@@ -1,5 +1,4 @@
 import unittest
-import hashlib
 from pathlib import PurePosixPath
 
 from backend.app.main import (
