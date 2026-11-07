@@ -54,7 +54,8 @@ Build and type-check the frontend:
 ```bash
 cd frontend
 npm install
+npm test
 npm run build
 ```
 
-GitHub Actions runs both checks for pushes to `main` and pull requests targeting `main`.
+GitHub Actions runs the backend regression suite, frontend unit tests, and frontend production build for pushes to `main` and pull requests targeting `main`.
