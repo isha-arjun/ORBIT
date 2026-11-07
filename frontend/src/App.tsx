@@ -97,6 +97,8 @@ function App() {
   const [githubRepo,setGithubRepo]=useState("");
   const [githubHistory,setGithubHistory]=useState<{repository:string;commits:GitCommit[]}|null>(null);
   const [historyLoading,setHistoryLoading]=useState(false);
+  const [historyError,setHistoryError]=useState("");
+  const [historyQuery,setHistoryQuery]=useState("");
   const [isImportingRepo,setIsImportingRepo]=useState(false);
   const [savedSnapshots,setSavedSnapshots]=useState<SavedSnapshot[]>(()=>{try{return JSON.parse(localStorage.getItem("orbit-snapshots-v1")||"[]") as SavedSnapshot[]}catch{return[]}});
   const [selectedBaseline,setSelectedBaseline]=useState("");
@@ -135,6 +137,20 @@ function App() {
     finally{setIsAnalyzing(false);}
   }
   async function handleFileChange(event:ChangeEvent<HTMLInputElement>){const file=event.target.files?.[0];event.target.value="";if(file)await analyzeUpload(file);}
+  async function loadGithubHistory(owner:string,repository:string){
+    setHistoryLoading(true);setHistoryError("");setGithubHistory(null);setHistoryQuery("");
+    try{
+      const response=await fetch(API_BASE_URL+"/github/history",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({owner,repository})});
+      const data=await response.json().catch(()=>null);
+      if(!response.ok)throw new Error(data?.detail||`History request failed (HTTP ${response.status}).`);
+      if(!data||!Array.isArray(data.commits))throw new Error("The history service returned an unexpected response.");
+      setGithubHistory({repository:data.repository||owner+"/"+repository,commits:data.commits});
+    }catch(err){
+      setGithubHistory({repository:owner+"/"+repository,commits:[]});
+      setHistoryError(err instanceof Error?err.message:"Could not load commit history.");
+    }finally{setHistoryLoading(false);}
+  }
+
   async function importGithubRepository(){
     let parsed: URL;
     try { parsed = new URL(githubRepo.trim()); } catch { setError("Enter a valid public GitHub repository URL."); return; }
@@ -144,7 +160,8 @@ function App() {
     }
     const owner = parts[0];
     const repository = parts[1].toLowerCase().endsWith(".git") ? parts[1].slice(0,-4) : parts[1];
-    setError(""); setIsImportingRepo(true); setAnalysis(null);
+    if(!API_BASE_URL){setError("The API address is not configured for this deployment.");return;}
+    setError(""); setIsImportingRepo(true); setAnalysis(null); setGithubHistory(null); setHistoryError(""); setSelectedBaseline("");
     try {
       const response = await fetch(`${API_BASE_URL}/analyze/github`, {
         method: "POST",
@@ -156,10 +173,7 @@ function App() {
       const result = data as AnalysisResult;
       setAnalysis(result); setSelectedFile(result.files[0] || null);
       setSearchQuery(""); setLanguageFilter("All languages"); setSelectedFolder("All files"); setCollapsedFolders([]);
-      setHistoryLoading(true);
-      try { const historyResponse = await fetch(API_BASE_URL + "/github/history", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({owner,repository})}); if(historyResponse.ok) setGithubHistory(await historyResponse.json()); else setGithubHistory({repository:owner+"/"+repository,commits:[]}); }
-      catch { setGithubHistory({repository:owner+"/"+repository,commits:[]}); }
-      finally { setHistoryLoading(false); }
+      await loadGithubHistory(owner,repository);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not import that GitHub repository.");
     } finally { setIsImportingRepo(false); }
@@ -173,7 +187,7 @@ function App() {
   }
   function loadSnapshot(snapshot:SavedSnapshot){
     if(!snapshot.analysis){setError("This older snapshot contains comparison data only. Analyze the project again to load a full workspace.");return;}
-    setAnalysis(snapshot.analysis);setSelectedFile(snapshot.analysis.files[0]||null);setSelectedBaseline("");setSearchQuery("");setLanguageFilter("All languages");setSelectedFolder("All files");setError("");
+    setAnalysis(snapshot.analysis);setGithubHistory(null);setHistoryError("");setHistoryQuery("");setSelectedFile(snapshot.analysis.files[0]||null);setSelectedBaseline("");setSearchQuery("");setLanguageFilter("All languages");setSelectedFolder("All files");setError("");
   }
   function toggleIssueResolved(id:string){
     const next=resolvedIssues.includes(id)?resolvedIssues.filter(item=>item!==id):[...resolvedIssues,id];
@@ -290,7 +304,7 @@ function App() {
           <span>{isAnalyzing ? "Reading archive structure" : "Select a project ZIP · Maximum 50 MB"}</span>
           <span className="upload-action">{isAnalyzing ? "PLEASE WAIT" : "SELECT PROJECT"}</span>
         </label>
-        <div className="github-import"><span className="github-import-label">OR IMPORT A PUBLIC REPOSITORY</span><div className="github-import-row"><input value={githubRepo} onChange={event=>setGithubRepo(event.target.value)} placeholder="https://github.com/owner/repository" aria-label="Public GitHub repository URL"/><button type="button" onClick={importGithubRepository} disabled={isImportingRepo||isAnalyzing||apiState!=="online"}>{isImportingRepo?"IMPORTING…":"IMPORT GITHUB"}</button></div><p>Public repositories only. Private repositories are not accessed; no GitHub token is requested.</p></div><p className="upload-guidance">Godot tip: ZIP the project folder containing project.godot. ORBIT skips the generated .godot cache automatically. Keep the ZIP under 50 MB.</p>
+        <div className="github-import"><span className="github-import-label">OR IMPORT A PUBLIC REPOSITORY</span><div className="github-import-row"><input value={githubRepo} onChange={event=>setGithubRepo(event.target.value)} onKeyDown={event=>{if(event.key==="Enter")void importGithubRepository();}} placeholder="https://github.com/owner/repository" aria-label="Public GitHub repository URL" autoComplete="url"/><button type="button" onClick={importGithubRepository} disabled={isImportingRepo||isAnalyzing||apiState!=="online"}>{isImportingRepo?"IMPORTING…":"IMPORT GITHUB"}</button></div><p>Public repositories only. Paste a repository URL and press Enter or Import. Private repositories are not accessed.</p></div><p className="upload-guidance">Godot tip: ZIP the project folder containing project.godot. ORBIT skips the generated .godot cache automatically. Keep the ZIP under 50 MB.</p>
         {apiState !== "online" && <p className="helper-text">The analyzer becomes available when the backend is connected.</p>}
         {error && <p className="error-message" role="alert">{error}</p>}
 
@@ -476,7 +490,7 @@ function App() {
             )}
 
             <section className="issues-panel" id="project-issues"><div className="explorer-heading"><div><p className="eyebrow">ACTIONABLE REVIEW</p><h4>Findings center</h4></div><span className="explorer-count">{allFindings.length} findings · {allFindings.filter(item=>!resolvedIssues.includes(item.id)).length} open</span></div><div className="issue-toolbar"><div className="issue-filters"><button className={issueFilter==="all"?"active":""} onClick={()=>setIssueFilter("all")}>All</button><button className={issueFilter==="open"?"active":""} onClick={()=>setIssueFilter("open")}>Open</button><button className={issueFilter==="resolved"?"active":""} onClick={()=>setIssueFilter("resolved")}>Resolved</button></div><span>Resolution state saved in this browser</span></div><div className="finding-list">{visibleFindings.map(finding=><article className={"finding-card finding-"+finding.severity+(resolvedIssues.includes(finding.id)?" finding-resolved":"")} key={finding.id}><span className="finding-severity">{finding.severity==="medium"?"REVIEW":"INFO"}</span><div className="finding-main"><strong>{finding.title}</strong><p>{finding.detail}</p>{finding.path&&<button className="finding-path" onClick={()=>{const file=analysis.files.find(item=>item.path===finding.path);if(file){setSelectedFile(file);document.getElementById("project-explorer")?.scrollIntoView({behavior:"smooth",block:"start"});}}}>{finding.path}{finding.line?" · line "+finding.line:""} ↗</button>}{finding.evidence&&<code className="finding-evidence">{finding.evidence}</code>}{finding.locations&&<div className="finding-locations">{finding.locations.map(location=><span key={location.path+location.line}>{location.path}:{location.line}</span>)}</div>}<small className="finding-confidence">{finding.confidence==="direct"?"Direct source marker":"Heuristic candidate"} · verify before changing code</small></div><button className="resolve-button" onClick={()=>toggleIssueResolved(finding.id)}>{resolvedIssues.includes(finding.id)?"Reopen":"Resolve"}</button></article>)}{!visibleFindings.length&&<p className="insight-empty">No findings in this view.</p>}</div><p className="explorer-footnote">TODO/FIXME markers are detected in source comments, not ordinary code or string literals. Repeated-code matches are review candidates, not proof of a defect. ORBIT does not execute uploaded code or perform a security audit.</p></section>
-<section className="history-panel" id="project-history">{githubHistory&&<div className="git-history-block"><div className="git-history-heading"><strong>Recent commits · {githubHistory.repository}</strong><span>{githubHistory.commits.length}</span></div>{githubHistory.commits.length?githubHistory.commits.map(commit=><div className="git-commit-row" key={commit.sha}><div><strong>{commit.message}</strong><small>{commit.author} · {commit.date?new Date(commit.date).toLocaleString():"Date unavailable"}</small></div><code>{commit.sha}</code>{commit.url&&<a href={commit.url} target="_blank" rel="noreferrer">View ↗</a>}</div>):<p className="insight-empty">Commit history is unavailable right now.</p>}</div>}{historyLoading&&<p className="insight-empty">Loading public GitHub commit history…</p>}<div className="explorer-heading"><div><p className="eyebrow">PROJECT HISTORY</p><h4>Snapshots & version comparison</h4></div><span className="explorer-count">{savedSnapshots.length} saved snapshots</span></div>
+<section className="history-panel" id="project-history">{githubHistory&&<div className="git-history-block"><div className="git-history-heading"><div><strong>Recent commits · {githubHistory.repository}</strong><span>{githubHistory.commits.length} commits</span></div><button type="button" className="history-refresh" onClick={()=>{const parts=githubHistory.repository.split("/");if(parts.length===2)void loadGithubHistory(parts[0],parts[1]);}} disabled={historyLoading||apiState!=="online"}>{historyLoading?"Refreshing…":"↻ Refresh"}</button></div><div className="history-search-row"><input value={historyQuery} onChange={event=>setHistoryQuery(event.target.value)} placeholder="Filter commit messages, authors or hashes…" aria-label="Filter commit history"/>{historyQuery&&<button type="button" onClick={()=>setHistoryQuery("")}>Clear</button>}</div>{githubHistory.commits.length?githubHistory.commits.filter(commit=>[commit.message,commit.author,commit.sha].join(" ").toLowerCase().includes(historyQuery.trim().toLowerCase())).map(commit=><div className="git-commit-row" key={commit.sha}><div><strong>{commit.message||"Commit message unavailable"}</strong><small>{commit.author||"Unknown author"} · {commit.date?new Date(commit.date).toLocaleString():"Date unavailable"}</small></div><code title={commit.sha}>{commit.sha.slice(0,12)}</code>{commit.url&&<a href={commit.url} target="_blank" rel="noreferrer">View ↗</a>}</div>):<p className="insight-empty">{historyError?"Commit history could not be loaded.": "No commits are available for this repository."}</p>}{githubHistory.commits.length>0&&!githubHistory.commits.some(commit=>[commit.message,commit.author,commit.sha].join(" ").toLowerCase().includes(historyQuery.trim().toLowerCase()))&&<p className="insight-empty">No commits match “{historyQuery}”. Try another search.</p>}{historyError&&<p className="history-error" role="status">{historyError} You can retry using Refresh.</p>}</div>}{historyLoading&&!githubHistory&&<p className="insight-empty">Loading public GitHub commit history…</p>}{!githubHistory&&<div className="history-intro"><p className="eyebrow">GITHUB ACTIVITY</p><h4>Recent commits</h4><p>Import a public GitHub repository to inspect its recent commit timeline.</p></div>}<div className="explorer-heading"><div><p className="eyebrow">PROJECT HISTORY</p><h4>Snapshots & version comparison</h4></div><span className="explorer-count">{savedSnapshots.length} saved snapshots</span></div>
 {savedSnapshots.length?<><div className="history-controls"><select value={selectedBaseline} onChange={event=>setSelectedBaseline(event.target.value)} aria-label="Choose a saved snapshot to compare"><option value="">Choose a previous snapshot to compare</option>{savedSnapshots.map(snapshot=><option key={snapshot.id} value={snapshot.id}>{snapshot.project_name} · {new Date(snapshot.savedAt).toLocaleString()}</option>)}</select></div>
 {baseline?<><div className="comparison-grid"><div><strong>{addedFiles.length}</strong><span>Added files</span></div><div><strong>{removedFiles.length}</strong><span>Removed files</span></div><div><strong>{addedEdges.length}</strong><span>New dependencies</span></div><div><strong>{removedEdges.length}</strong><span>Removed dependencies</span></div></div><div className="comparison-details"><div><h5>Added files</h5>{addedFiles.slice(0,12).map(file=><code key={file.path}>+ {file.path}</code>)}{!addedFiles.length&&<span>None</span>}</div><div><h5>Removed files</h5>{removedFiles.slice(0,12).map(file=><code key={file.path}>− {file.path}</code>)}{!removedFiles.length&&<span>None</span>}</div><div><h5>Dependency changes</h5>{addedEdges.slice(0,12).map(edge=><code key={edge}>+ {edge}</code>)}{removedEdges.slice(0,12).map(edge=><code key={edge}>− {edge}</code>)}{!addedEdges.length&&!removedEdges.length&&<span>None detected</span>}</div></div></>:<p className="insight-empty">Save this analysis and another version, then select a previous snapshot to compare structural changes.</p>}
 <div className="saved-snapshot-list">{savedSnapshots.slice(0,10).map(snapshot=><div key={snapshot.id}><span><strong>{snapshot.project_name}</strong><small>{new Date(snapshot.savedAt).toLocaleString()}</small></span><span>{snapshot.summary.files_scanned.toLocaleString()} files</span><button onClick={()=>loadSnapshot(snapshot)} disabled={!snapshot.analysis}>Open workspace</button></div>)}</div></>:<p className="insight-empty">No saved versions yet. Use “Save snapshot” after analyzing a project to start tracking its structure over time.</p>}
