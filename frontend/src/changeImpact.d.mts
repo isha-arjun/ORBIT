@@ -2,6 +2,8 @@ export type ImpactFile = string | { path: string };
 export type ImpactEdge = { from: string; to: string; specifier?: string };
 export type ImpactFinding = {
   id: string;
+  title?: string;
+  detail?: string;
   path?: string;
   locations?: { path: string; line?: number }[];
   [key: string]: unknown;
