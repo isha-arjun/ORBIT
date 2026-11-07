@@ -47,6 +47,8 @@ type CodeInsights = {
   supported_languages: string[];
   dependency_graph?: DependencyGraph;
 };
+type SavedSnapshot = { id:string; savedAt:string; project_name:string; summary:AnalysisResult["summary"]; languages:LanguageStat[]; files:ProjectFile[]; codeSummary:CodeInsights["summary"]; edges:DependencyEdge[] };
+type HealthFinding = { severity:"medium"|"info"; title:string; detail:string; path?:string };
 type AnalysisResult = {
   project_name: string;
   summary: {
@@ -89,6 +91,10 @@ function App() {
   const [selectedFolder, setSelectedFolder] = useState("All files");
   const [selectedFile, setSelectedFile] = useState<ProjectFile | null>(null);
   const [collapsedFolders, setCollapsedFolders] = useState<string[]>([]);
+  const [githubRepo,setGithubRepo]=useState("");
+  const [isImportingRepo,setIsImportingRepo]=useState(false);
+  const [savedSnapshots,setSavedSnapshots]=useState<SavedSnapshot[]>(()=>{try{return JSON.parse(localStorage.getItem("orbit-snapshots-v1")||"[]") as SavedSnapshot[]}catch{return[]}});
+  const [selectedBaseline,setSelectedBaseline]=useState("");
 
   useEffect(() => {
     let active = true;
@@ -111,46 +117,37 @@ function App() {
     return () => { active = false; };
   }, []);
 
-  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const selectedUpload = event.target.files?.[0];
-    event.target.value = "";
-    if (!selectedUpload) return;
-    setAnalysis(null);
-    setError("");
-    setSearchQuery("");
-    setLanguageFilter("All languages");
-    setSelectedFolder("All files");
-    setSelectedFile(null);
-    setCollapsedFolders([]);
-
-    if (!selectedUpload.name.toLowerCase().endsWith(".zip")) {
-      setError("Choose a ZIP archive to analyze.");
-      return;
-    }
-    if (selectedUpload.size > MAX_UPLOAD_BYTES) {
-      setError("That ZIP is larger than the 50 MB upload limit. Try excluding the .godot cache folder and unused large assets.");
-      return;
-    }
-    if (!API_BASE_URL) {
-      setError("The API address is not configured for this deployment.");
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("file", selectedUpload);
-    setIsAnalyzing(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/analyze/upload`, { method: "POST", body: formData });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || "The project could not be analyzed.");
-      const result = data as AnalysisResult;
-      setAnalysis(result);
-      setSelectedFile(result.files[0] || null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
-    } finally {
-      setIsAnalyzing(false);
-    }
+  async function analyzeUpload(selectedUpload: File) {
+    setAnalysis(null); setError(""); setSearchQuery(""); setLanguageFilter("All languages"); setSelectedFolder("All files"); setSelectedFile(null); setCollapsedFolders([]);
+    if (!selectedUpload.name.toLowerCase().endsWith(".zip")) { setError("Choose a ZIP archive to analyze."); return; }
+    if (selectedUpload.size > MAX_UPLOAD_BYTES) { setError("That ZIP exceeds ORBIT's 50 MB upload limit."); return; }
+    if (!API_BASE_URL) { setError("The API address is not configured for this deployment."); return; }
+    const formData=new FormData(); formData.append("file",selectedUpload); setIsAnalyzing(true);
+    try { const response=await fetch(`${API_BASE_URL}/analyze/upload`,{method:"POST",body:formData}); const data=await response.json(); if(!response.ok)throw new Error(data.detail||"The project could not be analyzed."); const result=data as AnalysisResult; setAnalysis(result); setSelectedFile(result.files[0]||null); }
+    catch(err){setError(err instanceof Error?err.message:"Something went wrong. Please try again.");}
+    finally{setIsAnalyzing(false);}
+  }
+  async function handleFileChange(event:ChangeEvent<HTMLInputElement>){const file=event.target.files?.[0];event.target.value="";if(file)await analyzeUpload(file);}
+  async function importGithubRepository(){
+    const match=githubRepo.trim().match(/^https?:\\/\\/github\\.com\\/([A-Za-z0-9_.-]+)\\/([A-Za-z0-9_.-]+)(?:\\.git)?(?:[/?#].*)?$/i);
+    if(!match){setError("Enter a public GitHub URL, e.g. https://github.com/owner/repository.");return;}
+    setError("");setIsImportingRepo(true);
+    try{const repo=match[2].replace(/\\.git$/i,"");const response=await fetch(`https://api.github.com/repos/${match[1]}/${repo}/zipball`,{headers:{Accept:"application/vnd.github+json"}});
+      if(!response.ok)throw new Error(response.status===404?"Repository not found or not public.":`GitHub returned ${response.status}. Try uploading a ZIP instead.`);
+      const blob=await response.blob();if(blob.size>MAX_UPLOAD_BYTES)throw new Error("This repository archive exceeds ORBIT's 50 MB upload limit.");
+      await analyzeUpload(new File([blob],`${repo}.zip`,{type:"application/zip"}));
+    }catch(err){setError(err instanceof Error?err.message:"Could not import that GitHub repository.");}finally{setIsImportingRepo(false);}
+  }
+  function saveCurrentSnapshot(){
+    if(!analysis)return;
+    const snapshot:SavedSnapshot={id:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,savedAt:new Date().toISOString(),project_name:analysis.project_name,summary:analysis.summary,languages:analysis.languages,files:analysis.files,codeSummary:analysis.code_insights?.summary||{files_analyzed:0,functions_found:0,classes_found:0,imports_found:0,source_files_skipped_or_over_limit:0},edges:analysis.code_insights?.dependency_graph?.edges||[]};
+    const next=[snapshot,...savedSnapshots].slice(0,20);setSavedSnapshots(next);
+    try{localStorage.setItem("orbit-snapshots-v1",JSON.stringify(next));}catch{setError("Browser storage is full. Remove older snapshots or save a smaller project.");}
+  }
+  function exportReport(){
+    if(!analysis)return;
+    const report={generated_at:new Date().toISOString(),product:"ORBIT Developer Intelligence",project:analysis.project_name,summary:analysis.summary,languages:analysis.languages,code_insights:analysis.code_insights?.summary||null,dependency_summary:analysis.code_insights?.dependency_graph?.summary||null,findings:healthFindings,notes:["Static best-effort analysis only.","Uploaded code was not executed.","This report is not a security audit."]};
+    const blob=new Blob([JSON.stringify(report,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const anchor=document.createElement("a");anchor.href=url;anchor.download=`${analysis.project_name.replace(/[^a-z0-9-_]+/gi,"-")}-orbit-report.json`;anchor.click();URL.revokeObjectURL(url);
   }
 
   const folderItems = useMemo(() => {
@@ -175,7 +172,7 @@ function App() {
     if (!analysis) return [];
     const query = searchQuery.trim().toLowerCase();
     return analysis.files.filter((file) => {
-      const matchesSearch = !query || file.path.toLowerCase().includes(query) || file.language.toLowerCase().includes(query);
+      const insight=analysis.code_insights?.files.find(item=>item.path===file.path);const searchable=[file.path,file.language,insight?.functions?.map(item=>item.name).join(" "),insight?.classes?.map(item=>item.name).join(" "),insight?.imports?.join(" ")].join(" ").toLowerCase();const matchesSearch=!query||searchable.includes(query);
       const matchesLanguage = languageFilter === "All languages" || file.language === languageFilter;
       const folder = normalizeFolder(selectedFolder);
       const matchesFolder = selectedFolder === "All files" || file.path.startsWith(`${folder}/`) || file.path === folder;
@@ -195,6 +192,20 @@ function App() {
   const dependencyGraph = codeInsights.dependency_graph;
   const selectedOutgoing = dependencyGraph?.edges.filter((edge) => edge.from === selectedFile?.path) || [];
   const selectedIncoming = dependencyGraph?.edges.filter((edge) => edge.to === selectedFile?.path) || [];
+  const healthFindings=useMemo<HealthFinding[]>(()=>{if(!analysis)return[];const f:HealthFinding[]=[];const insights=analysis.code_insights;const parse=insights?.files.filter(x=>x.status==="parse_error")||[];const skipped=insights?.summary.source_files_skipped_or_over_limit||0;const unresolved=insights?.dependency_graph?.summary.unresolved_relative_imports||0;const complex=(insights?.files||[]).filter(x=>(x.complexity_estimate||0)>=15);const large=analysis.files.filter(x=>x.size_bytes>=100*1024);
+    if(parse.length)f.push({severity:"medium",title:"Files with parsing errors",detail:`${parse.length} supported source file(s) could not be parsed. Check syntax or parser compatibility.`,path:parse[0].path});
+    if(skipped)f.push({severity:"medium",title:"Source files skipped",detail:`${skipped} source file(s) were outside analyzer size or total-analysis limits.`});
+    if(unresolved)f.push({severity:"medium",title:"Unresolved local imports",detail:`${unresolved} relative import(s) could not be linked to a file in this archive.`});
+    if(complex.length)f.push({severity:"info",title:"High branch-count estimates",detail:`${complex.length} file(s) have an estimated branch count of 15 or more. This is a rough signal, not a complexity score.`,path:complex[0].path});
+    if(large.length)f.push({severity:"info",title:"Large files to review",detail:`${large.length} file(s) are at least 100 KB. Consider whether any would benefit from smaller modules.`,path:large.sort((a,b)=>b.size_bytes-a.size_bytes)[0].path});
+    if(!f.length)f.push({severity:"info",title:"No structural flags detected",detail:"Current static checks found no parsing errors, skipped source files, unresolved local imports, or unusually large files. This is not a guarantee of correctness or security."});return f;},[analysis]);
+  const structureScore=Math.max(0,100-healthFindings.reduce((score,item)=>score+(item.severity==="medium"?12:item.title==="No structural flags detected"?0:5),0));
+  const graphNodes=useMemo(()=>{if(!dependencyGraph)return[];const names=dependencyGraph.nodes.length?dependencyGraph.nodes:[...new Set(dependencyGraph.edges.flatMap(e=>[e.from,e.to]))];return names.slice(0,28).map((path,index,all)=>{const angle=2*Math.PI*index/Math.max(all.length,1)-Math.PI/2;return{path,x:400+Math.cos(angle)*(all.length>1?178:0),y:245+Math.sin(angle)*(all.length>1?178:0)};});},[dependencyGraph]);
+  const graphPosition=new Map(graphNodes.map(node=>[node.path,node]));
+  const baseline=savedSnapshots.find(snapshot=>snapshot.id===selectedBaseline);const baselinePaths=new Set(baseline?.files.map(f=>f.path)||[]);const currentPaths=new Set(analysis?.files.map(f=>f.path)||[]);
+  const addedFiles=analysis?analysis.files.filter(f=>!baselinePaths.has(f.path)):[];const removedFiles=baseline?baseline.files.filter(f=>!currentPaths.has(f.path)):[];
+  const currentEdges=new Set(dependencyGraph?.edges.map(e=>`${e.from}→${e.to}`)||[]);const baselineEdges=new Set(baseline?.edges.map(e=>`${e.from}→${e.to}`)||[]);
+  const addedEdges=[...currentEdges].filter(e=>!baselineEdges.has(e));const removedEdges=[...baselineEdges].filter(e=>!currentEdges.has(e));
 
   const statusLabel = {
     checking: "Checking API connection…",
