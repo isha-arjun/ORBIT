@@ -14,6 +14,7 @@ ORBIT is a cloud-hosted developer intelligence workspace. It creates a structura
 - Project inventory, language profile, folder explorer, and symbol/import search.
 - Static code insights for Python, JavaScript, TypeScript, and GDScript where supported by the backend.
 - Best-effort internal dependency graph and interactive architecture visualization.
+- Architecture signals derived from resolved imports: high-connectivity files and strongly connected dependency groups (cycle candidates), with direct navigation to affected files.
 - Findings center with TODO/FIXME/HACK markers found in source comments, repeated-code candidates, parser errors, skipped files, unresolved imports, complexity estimates, and large-file signals. Function reachability is not guessed from name occurrence counts because framework routes and dynamic calls make that unreliable.
 - Finding triage with open/resolved states stored in the current browser.
 - Recent public GitHub commit history via the repository's Atom feed, avoiding the unauthenticated GitHub REST API quota, with in-workspace search and manual refresh.
