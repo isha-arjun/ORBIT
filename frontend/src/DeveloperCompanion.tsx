@@ -25,7 +25,7 @@ export default function DeveloperCompanion({ files, insights, findings, edges = 
   useEffect(() => setActiveIndex(0), [query]);
 
   useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
+    function onKeyDown(event: globalThis.KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         setPaletteOpen(true);
