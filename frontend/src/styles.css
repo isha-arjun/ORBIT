@@ -278,3 +278,73 @@ footer { border-top-color: var(--orbit-line); }
     animation-iteration-count: 1 !important;
   }
 }
+
+
+/* ORBIT static intelligence workspace */
+.github-import{margin-top:16px;padding:15px;border:1px solid rgba(255,255,255,.09);border-radius:12px;background:rgba(255,255,255,.018)}
+.github-import-label,.graph-caption span{display:block;color:#8491a7;font-size:9px;font-weight:700;letter-spacing:.13em}
+.github-import-row{display:flex;gap:9px;margin-top:10px}
+.github-import-row input,.history-controls select{flex:1;min-width:0;min-height:42px;padding:0 12px;border:1px solid rgba(255,255,255,.12);border-radius:8px;background:#151d2a;color:#eaf0fa;font:inherit;font-size:12px}
+.github-import-row button,.workspace-actions button{border:1px solid rgba(142,184,255,.28);border-radius:8px;padding:0 14px;background:rgba(142,184,255,.12);color:#cfe0ff;font-size:10px;font-weight:800;letter-spacing:.07em;cursor:pointer}
+.github-import-row button:disabled{opacity:.5;cursor:wait}
+.github-import p{margin:8px 0 0;color:#718098;font-size:10px;line-height:1.5}
+.workspace-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 0 16px}
+.workspace-actions button{min-height:36px}
+.workspace-actions button:hover,.github-import-row button:hover{background:rgba(142,184,255,.2)}
+.workspace-actions span{margin-left:auto;color:#718098;font-size:10px}
+.workspace-nav{position:sticky;top:0;z-index:5;display:flex;gap:7px;flex-wrap:wrap;margin:0 0 14px;padding:10px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(16,22,33,.94);backdrop-filter:blur(14px)}
+.workspace-nav a{padding:7px 10px;border-radius:7px;color:#aebdd2;text-decoration:none;font-size:10px}
+.workspace-nav a:hover{background:rgba(142,184,255,.12);color:#e8f1ff}
+.health-overview{display:grid;grid-template-columns:210px minmax(0,1fr);gap:18px;align-items:center;margin:0 0 16px;padding:20px;border:1px solid rgba(142,184,255,.19);border-radius:14px;background:linear-gradient(120deg,rgba(104,145,211,.10),rgba(255,255,255,.02))}
+.health-score{display:flex;flex-direction:column;gap:6px}
+.health-score>strong{font-size:43px;line-height:1;letter-spacing:-.06em;color:#dce9ff;font-variant-numeric:tabular-nums}
+.health-score>strong small{font-size:14px;color:#8292aa;letter-spacing:0}
+.health-score>span:last-child{color:#718098;font-size:9px;line-height:1.4}
+.health-summary h4{margin:0 0 7px;font-size:15px}
+.health-summary p{margin:0;color:#9ca8bb;font-size:11px;line-height:1.7}
+.health-pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
+.health-pills span{padding:6px 8px;border-radius:6px;background:rgba(255,255,255,.055);color:#aebdd2;font-size:9px}
+.architecture-graph{margin:15px 0;padding:14px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:radial-gradient(ellipse at center,rgba(80,119,183,.09),transparent 68%),rgba(0,0,0,.13)}
+.graph-caption{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:8px}
+.graph-caption strong{font-size:12px;color:#d6e2f3}
+.graph-caption span{font-size:8px;letter-spacing:0;text-align:right;font-weight:500}
+.architecture-graph svg{display:block;width:100%;max-height:510px;overflow:visible}
+.graph-edge{stroke:rgba(142,184,255,.28);stroke-width:1.3}
+.graph-node{cursor:pointer}
+.graph-node circle{fill:#233a5e;stroke:#8eb8ff;stroke-width:1.5;transition:all .15s ease}
+.graph-node text{fill:#aabbd3;font-size:10px;pointer-events:none}
+.graph-node:hover circle,.graph-node.active circle{fill:#91b9ff;stroke:#e2edff;stroke-width:2.5}
+.graph-node.active text{fill:#fff;font-weight:700}
+.issues-panel,.history-panel{margin-top:14px;padding:20px;border:1px solid rgba(142,184,255,.18);border-radius:16px;background:rgba(8,12,20,.35)}
+.finding-list{display:grid;gap:9px}
+.finding-card{display:grid;grid-template-columns:68px minmax(0,1fr);gap:12px;padding:13px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(255,255,255,.02)}
+.finding-severity{align-self:start;padding:6px 7px;border-radius:6px;background:rgba(226,182,108,.10);color:#e5bd7b;text-align:center;font-size:8px;font-weight:800;letter-spacing:.08em}
+.finding-info .finding-severity{background:rgba(142,184,255,.10);color:#9fc2ff}
+.finding-card strong{font-size:11px;color:#dce7f8}
+.finding-card p{margin:5px 0;color:#9ca8bb;font-size:10px;line-height:1.6}
+.finding-card code{color:#8fa8ca;font-size:9px;overflow-wrap:anywhere}
+.history-controls{margin-bottom:12px}
+.history-controls select{width:100%}
+.comparison-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:12px 0}
+.comparison-grid>div{display:flex;flex-direction:column;gap:4px;padding:13px;border:1px solid rgba(255,255,255,.08);border-radius:9px;background:rgba(255,255,255,.025)}
+.comparison-grid strong{font-size:22px;color:#dce9ff;font-variant-numeric:tabular-nums}
+.comparison-grid span{font-size:9px;color:#8491a7}
+.comparison-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}
+.comparison-details>div{display:flex;flex-direction:column;gap:7px;min-width:0;padding:12px;border:1px solid rgba(255,255,255,.07);border-radius:9px}
+.comparison-details h5{margin:0 0 3px;color:#bdcce0;font-size:10px}
+.comparison-details code{color:#9fbce8;font-size:9px;overflow-wrap:anywhere}
+.comparison-details span{color:#718098;font-size:10px}
+.saved-snapshot-list{display:grid;gap:0;margin-top:12px;border-top:1px solid rgba(255,255,255,.07)}
+.saved-snapshot-list>div{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 2px;border-bottom:1px solid rgba(255,255,255,.055);color:#8797ae;font-size:10px}
+.saved-snapshot-list>div>span:first-child{display:flex;flex-direction:column;gap:4px}
+.saved-snapshot-list strong{color:#d3deee;font-size:10px}
+.saved-snapshot-list small{color:#718098;font-size:9px}
+@media(max-width:760px){
+ .github-import-row{flex-direction:column}.github-import-row button{min-height:40px}
+ .workspace-actions span{width:100%;margin-left:0}
+ .health-overview{grid-template-columns:1fr}
+ .graph-caption{align-items:flex-start;flex-direction:column}.graph-caption span{text-align:left}
+ .comparison-grid{grid-template-columns:repeat(2,1fr)}
+ .comparison-details{grid-template-columns:1fr}
+ .architecture-graph{padding:8px}
+}
