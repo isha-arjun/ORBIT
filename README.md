@@ -21,6 +21,9 @@ ORBIT is a cloud-hosted developer intelligence workspace. It creates a structura
 - Up to five recently imported public repositories remembered locally for quick re-entry.
 - Local project snapshots and comparisons of added/removed files, modified source files (using SHA-256 fingerprints, not retained source text), dependency edges, and detected functions/classes/signals; up to 20 snapshots are retained in the current browser.
 - Snapshot change-impact review: traces direct and transitive dependents of changed files using the union of baseline and current dependency edges, then surfaces findings attached to changed or connected files. This is a static review estimate, not a regression prediction; incomplete fingerprints can make modified-file impact incomplete.
+- Guided developer companion that recommends next actions from parser output, review-level findings, and dependency metadata; suggestions remain traceable to the underlying evidence.
+- Project search across file paths, detected functions/classes/signals, imports, and finding text, plus a keyboard command palette (`Cmd/Ctrl+K`) for jumping directly to files.
+- Public GitHub pull request impact preview: lists open PRs, compares changed paths with the imported inventory, and surfaces direct mapped dependents and existing findings near changed files. It is context for human review, not automated code review.
 - Downloadable versioned JSON analysis reports containing project inventory, health indicators, code insights, dependency graph data, findings with local resolution states, and (when selected) snapshot diffs plus change-impact estimates.
 
 ## Analysis limits
@@ -31,9 +34,9 @@ ORBIT is a cloud-hosted developer intelligence workspace. It creates a structura
 - Maximum individual source file analyzed: 256 KB.
 - Maximum total source bytes analyzed per archive: 5 MB.
 - Unsafe paths and symbolic links are rejected; common generated folders are excluded.
-- GitHub import currently supports public repositories only and imports the repository's default branch. Recent commit history is fetched separately from the public GitHub API.
+- GitHub import currently supports public repositories only and imports the repository's default branch. Recent commit history and pull request metadata are fetched separately from the public GitHub API; unauthenticated API rate limits may apply. Pull request impact preview compares changed paths against the currently imported inventory, so import the PR's base branch for the most useful context. GitHub's changed-file endpoint is capped at 100 files.
 
-Python files use the standard-library AST parser. JavaScript and TypeScript use a lightweight structural scan; symbol detection is heuristic and is not a full compiler, type checker, or security audit. The dependency map is best-effort: external packages, dynamic imports, runtime references, and unresolved aliases are not represented. Repeated code blocks are heuristic candidates, not proof of defects. ORBIT deliberately does not label functions unused based only on textual name counts; dynamic calls, framework hooks, reflection, and external entry points make that inference unreliable. TODO-style markers are detected from actual comments rather than ordinary code or string literals.
+Python files use the standard-library AST parser. JavaScript and TypeScript use a lightweight structural scan; symbol detection is heuristic and is not a full compiler, type checker, or security audit. The developer companion searches the analyzed metadata (paths, detected symbols, imports, and findings); it is not an AI code-understanding model and does not infer behavior from source text. The dependency map is best-effort: external packages, dynamic imports, runtime references, and unresolved aliases are not represented. Repeated code blocks are heuristic candidates, not proof of defects. ORBIT deliberately does not label functions unused based only on textual name counts; dynamic calls, framework hooks, reflection, and external entry points make that inference unreliable. TODO-style markers are detected from actual comments rather than ordinary code or string literals.
 
 ## Privacy and safety
 
