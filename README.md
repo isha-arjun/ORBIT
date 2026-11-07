@@ -14,9 +14,9 @@ ORBIT is a cloud-hosted developer intelligence workspace. It creates a structura
 - Project inventory, language profile, folder explorer, and symbol/import search.
 - Static code insights for Python, JavaScript, TypeScript, and GDScript where supported by the backend.
 - Best-effort internal dependency graph and interactive architecture visualization.
-- Findings center with TODO/FIXME/HACK markers, repeated-code candidates, possibly unreferenced function candidates, parser errors, skipped files, unresolved imports, complexity estimates, and large-file signals.
+- Findings center with TODO/FIXME/HACK markers found in source comments, repeated-code candidates, parser errors, skipped files, unresolved imports, complexity estimates, and large-file signals. Function reachability is not guessed from name occurrence counts because framework routes and dynamic calls make that unreliable.
 - Finding triage with open/resolved states stored in the current browser.
-- Recent public GitHub commit history for repositories imported from GitHub.
+- Recent public GitHub commit history via the repository's Atom feed, avoiding the unauthenticated GitHub REST API quota.
 - Local project snapshots and comparisons of added/removed files and dependency edges.
 - Downloadable JSON analysis reports.
 
@@ -30,7 +30,7 @@ ORBIT is a cloud-hosted developer intelligence workspace. It creates a structura
 - Unsafe paths and symbolic links are rejected; common generated folders are excluded.
 - GitHub import currently supports public repositories only and imports the repository's default branch. Recent commit history is fetched separately from the public GitHub API.
 
-Python files use the standard-library AST parser. JavaScript and TypeScript use a lightweight structural scan; symbol detection is heuristic and is not a full compiler, type checker, or security audit. The dependency map is best-effort: external packages, dynamic imports, runtime references, and unresolved aliases are not represented. Duplicate blocks and possibly unused functions are heuristic candidates, not proof of defects; dynamic calls, framework hooks, reflection, and external entry points can produce false positives.
+Python files use the standard-library AST parser. JavaScript and TypeScript use a lightweight structural scan; symbol detection is heuristic and is not a full compiler, type checker, or security audit. The dependency map is best-effort: external packages, dynamic imports, runtime references, and unresolved aliases are not represented. Repeated code blocks are heuristic candidates, not proof of defects. ORBIT deliberately does not label functions unused based only on textual name counts; dynamic calls, framework hooks, reflection, and external entry points make that inference unreliable. TODO-style markers are detected from actual comments rather than ordinary code or string literals.
 
 ## Privacy and safety
 
