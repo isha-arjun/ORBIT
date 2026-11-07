@@ -19,7 +19,7 @@ ORBIT is a cloud-hosted developer intelligence workspace. It creates a structura
 - Finding triage with open/resolved states stored in the current browser, plus text search and severity filters.
 - Recent public GitHub commit history via the repository's Atom feed, avoiding the unauthenticated GitHub REST API quota, with in-workspace search and manual refresh.
 - Up to five recently imported public repositories remembered locally for quick re-entry.
-- Local project snapshots and comparisons of added/removed files, dependency edges, and detected functions/classes/signals; up to 20 snapshots are retained in the current browser.
+- Local project snapshots and comparisons of added/removed files, modified source files (using SHA-256 fingerprints, not retained source text), dependency edges, and detected functions/classes/signals; up to 20 snapshots are retained in the current browser.
 - Downloadable versioned JSON analysis reports containing project inventory, health indicators, code insights, dependency graph data, and findings with local resolution states.
 
 ## Analysis limits
@@ -36,7 +36,7 @@ Python files use the standard-library AST parser. JavaScript and TypeScript use 
 
 ## Privacy and safety
 
-The ZIP is transmitted to the ORBIT API on Render. Supported source files are read in memory for static analysis; the application does not intentionally persist source contents. Remove credentials, tokens, private keys, and other sensitive material before creating the ZIP. Public GitHub archives are fetched server-side by the analyzer API; recent commit metadata is fetched from GitHub for the timeline. ORBIT never executes uploaded project code and does not send source code to third-party AI services.
+The ZIP is transmitted to the ORBIT API on Render. Supported source files are read in memory for static analysis; the application does not intentionally persist source contents. For eligible supported source files, ORBIT returns a SHA-256 content fingerprint to enable local snapshot change detection; the fingerprint is not source text and is not used to reconstruct files. Remove credentials, tokens, private keys, and other sensitive material before creating the ZIP. Public GitHub archives are fetched server-side by the analyzer API; recent commit metadata is fetched from GitHub for the timeline. ORBIT never executes uploaded project code and does not send source code to third-party AI services.
 
 Saved snapshots are stored in the current browser's local storage. They are not cloud-synced and may be cleared when browser site data is removed.
 
