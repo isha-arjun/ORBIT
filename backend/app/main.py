@@ -325,6 +325,11 @@ def _project_maintenance_findings(source_rows: list[tuple[str, PurePosixPath, by
     # framework routing, templates, or dynamic dispatch.
     return findings[:300]
 
+def _content_fingerprint(raw: bytes) -> str:
+    """Return a one-way content digest for local snapshot comparisons."""
+    return hashlib.sha256(raw).hexdigest()
+
+
 def _analyze_source(path: PurePosixPath, raw: bytes) -> dict:
     try:
         source = raw.decode("utf-8-sig")
@@ -534,7 +539,7 @@ async def analyze_upload(file: UploadFile = File(...)) -> dict:
                     raw = source_file.read(MAX_SOURCE_FILE_BYTES + 1)
                 if len(raw) <= MAX_SOURCE_FILE_BYTES:
                     # Keep only a one-way fingerprint for snapshot comparisons; never return source text.
-                    file_rows[-1]["content_sha256"] = hashlib.sha256(raw).hexdigest()
+                    file_rows[-1]["content_sha256"] = _content_fingerprint(raw)
                     source_rows.append((normalized, path, raw))
                     source_budget -= len(raw)
         if not file_rows:
