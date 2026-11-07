@@ -1,10 +1,12 @@
 from collections import Counter
-from io import BytesIO
+from io import BytesIO, StringIO
 from pathlib import PurePosixPath
 import ast
 import posixpath
 import re
 import stat
+import tokenize
+import xml.etree.ElementTree as ET
 import zipfile
 
 import httpx
@@ -204,8 +206,62 @@ def _gdscript_insights(source: str) -> dict:
     }
 
 
+def _comment_lines(path: str, source: str) -> list[tuple[int, str]]:
+    """Return actual comment text, excluding ordinary source strings and code."""
+    suffix = PurePosixPath(path).suffix.lower()
+    if suffix in {".py", ".pyi"}:
+        comments = []
+        try:
+            for token in tokenize.generate_tokens(StringIO(source).readline):
+                if token.type == tokenize.COMMENT:
+                    comments.append((token.start[0], token.string[1:]))
+        except (tokenize.TokenError, IndentationError):
+            return comments
+        return comments
+
+    comments = []
+    in_block = False
+    for line_number, line in enumerate(source.splitlines(), start=1):
+        index = 0
+        while index < len(line):
+            if in_block:
+                end = line.find("*/", index)
+                if end < 0:
+                    comments.append((line_number, line[index:]))
+                    break
+                comments.append((line_number, line[index:end]))
+                index = end + 2
+                in_block = False
+                continue
+            char = line[index]
+            if char in {"'", '"', "`"}:
+                quote_char = char
+                index += 1
+                while index < len(line):
+                    if line[index] == "\\\\":
+                        index += 2
+                        continue
+                    if line[index] == quote_char:
+                        index += 1
+                        break
+                    index += 1
+                continue
+            if suffix == ".gd" and char == "#":
+                comments.append((line_number, line[index + 1:]))
+                break
+            if line.startswith("//", index):
+                comments.append((line_number, line[index + 2:]))
+                break
+            if line.startswith("/*", index):
+                in_block = True
+                index += 2
+                continue
+            index += 1
+    return comments
+
+
 def _project_maintenance_findings(source_rows: list[tuple[str, PurePosixPath, bytes]], insights: list[dict]) -> list[dict]:
-    """Explainable static review candidates; heuristics are never proof."""
+    """Return explainable static review candidates; heuristics are never proof."""
     findings = []
     sources = {}
     for normalized, path, raw in source_rows:
@@ -213,16 +269,29 @@ def _project_maintenance_findings(source_rows: list[tuple[str, PurePosixPath, by
             sources[normalized] = raw.decode("utf-8-sig")
         except UnicodeDecodeError:
             continue
-    marker_pattern = re.compile(r"\b(TODO|FIXME|HACK|XXX)\b\s*[:：-]?\s*(.*)", re.IGNORECASE)
+
+    marker_pattern = re.compile(r"\\b(TODO|FIXME|HACK|XXX)\\b\\s*[:：-]?\\s*(.*)", re.IGNORECASE)
     for path, source in sources.items():
-        for number, line in enumerate(source.splitlines(), start=1):
-            match = marker_pattern.search(line)
+        for number, comment in _comment_lines(path, source):
+            match = marker_pattern.search(comment)
             if match:
-                findings.append({"id": f"todo:{path}:{number}", "kind": "todo", "severity": "info" if match.group(1).upper() == "TODO" else "medium", "title": f"{match.group(1).upper()} marker", "detail": (match.group(2).strip() or "Review this marker and decide whether work remains.")[:240], "path": path, "line": number, "evidence": line.strip()[:240], "confidence": "direct"})
+                findings.append({
+                    "id": f"todo:{path}:{number}",
+                    "kind": "todo",
+                    "severity": "info" if match.group(1).upper() == "TODO" else "medium",
+                    "title": f"{match.group(1).upper()} marker",
+                    "detail": (match.group(2).strip() or "Review this marker and decide whether work remains.")[:240],
+                    "path": path,
+                    "line": number,
+                    "evidence": comment.strip()[:240],
+                    "confidence": "direct",
+                })
+
+    # Exact repeated blocks are retained as low-confidence review candidates.
     block_index = {}
     for path, source in sources.items():
         lines = source.splitlines()
-        normalized = [re.sub(r"\s+", " ", line.strip()) for line in lines]
+        normalized = [re.sub(r"\\s+", " ", line.strip()) for line in lines]
         for start in range(max(0, len(lines) - 5)):
             block = normalized[start:start + 6]
             if len(block) == 6 and all(len(line) >= 12 for line in block):
@@ -235,22 +304,24 @@ def _project_maintenance_findings(source_rows: list[tuple[str, PurePosixPath, by
                 distinct.append({"path": path, "line": line})
                 seen.add(path)
         if len(distinct) >= 2:
-            findings.append({"id": f"duplicate:{index}", "kind": "duplicate_candidate", "severity": "info", "title": "Repeated code block candidate", "detail": "Six consecutive normalized lines match another file. Review whether this is intentional shared logic.", "path": distinct[0]["path"], "line": distinct[0]["line"], "locations": distinct[:8], "confidence": "heuristic"})
-            if len(findings) >= 250:
-                break
-    combined = "\n".join(sources.values())
-    for item in insights:
-        if item.get("status") != "analyzed":
-            continue
-        for symbol in item.get("functions", []):
-            name = symbol.get("name", "")
-            if not name or name.startswith("_") or name in {"main", "setup", "run", "start", "update", "ready", "process", "physics_process"}:
-                continue
-            occurrences = len(re.findall(r"(?<![\w$])" + re.escape(name) + r"(?![\w$])", combined))
-            if occurrences == 1:
-                findings.append({"id": f"unused:{item['path']}:{symbol.get('line', 0)}:{name}", "kind": "unused_candidate", "severity": "info", "title": "Possibly unreferenced function", "detail": "This name appears only at its declaration in analyzed source. Dynamic calls, framework hooks, reflection, or external entry points may still use it.", "path": item["path"], "line": symbol.get("line"), "evidence": f"{name}()", "confidence": "heuristic"})
-    return findings[:300]
+            findings.append({
+                "id": f"duplicate:{index}",
+                "kind": "duplicate_candidate",
+                "severity": "info",
+                "title": "Repeated code block candidate",
+                "detail": "Six consecutive normalized lines match another file. Review whether this is intentional shared logic.",
+                "path": distinct[0]["path"],
+                "line": distinct[0]["line"],
+                "locations": distinct[:8],
+                "confidence": "heuristic",
+            })
+        if len(findings) >= 250:
+            break
 
+    # Unreferenced-function detection is intentionally omitted. Name occurrence
+    # counts cannot reliably account for decorators, callbacks, reflection,
+    # framework routing, templates, or dynamic dispatch.
+    return findings[:300]
 
 def _analyze_source(path: PurePosixPath, raw: bytes) -> dict:
     try:
@@ -274,20 +345,64 @@ async def github_repository_history(payload: dict) -> dict:
         raise HTTPException(status_code=400, detail="Enter a valid public GitHub repository.")
     if repository.lower().endswith(".git"):
         repository = repository[:-4]
-    url = f"https://api.github.com/repos/{owner}/{repository}/commits?per_page=15"
+
+    # GitHub's Atom commit feed does not consume the REST API rate limit.
+    headers = {"User-Agent": "ORBIT-Developer-Intelligence", "Accept": "application/atom+xml"}
+    timeout = httpx.Timeout(20.0, connect=8.0)
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=8.0)) as client:
-            response = await client.get(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "ORBIT-Developer-Intelligence"})
-        if response.status_code == 404:
-            raise HTTPException(status_code=404, detail="Repository history is unavailable for this public repository.")
-        if response.status_code == 403:
-            raise HTTPException(status_code=429, detail="GitHub temporarily rate-limited history lookup.")
-        if response.status_code != 200:
-            raise HTTPException(status_code=502, detail="GitHub history could not be loaded.")
-        rows = response.json()
-        return {"repository": owner + "/" + repository, "commits": [{"sha": row.get("sha", "")[:12], "message": ((row.get("commit") or {}).get("message") or "").splitlines()[0][:180], "author": ((row.get("commit") or {}).get("author") or {}).get("name", "Unknown"), "date": ((row.get("commit") or {}).get("author") or {}).get("date"), "url": row.get("html_url")} for row in rows if isinstance(row, dict)]}
+        async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
+            page = await client.get(f"https://github.com/{owner}/{repository}", headers=headers)
+            if page.status_code == 404:
+                raise HTTPException(status_code=404, detail="Repository history is unavailable for this public repository.")
+            if page.status_code in {403, 429}:
+                raise HTTPException(status_code=429, detail="GitHub is temporarily limiting history lookup.")
+            if page.status_code != 200:
+                raise HTTPException(status_code=502, detail="GitHub repository page could not be opened.")
+            branch_match = re.search(r'"defaultBranch"\\s*:\\s*"([^"]+)"', page.text)
+            if not branch_match:
+                branch_match = re.search(r'defaultBranch\\s*[:=]\\s*["\\\\]([^"\\\\]+)', page.text)
+            if not branch_match:
+                raise HTTPException(status_code=502, detail="ORBIT could not identify the repository's default branch.")
+            branch = quote(branch_match.group(1), safe="")
+            feed_url = f"https://github.com/{owner}/{repository}/commits/{branch}.atom"
+            feed = await client.get(feed_url, headers=headers)
+            if feed.status_code == 404:
+                return {"repository": owner + "/" + repository, "commits": []}
+            if feed.status_code in {403, 429}:
+                raise HTTPException(status_code=429, detail="GitHub is temporarily limiting history lookup.")
+            if feed.status_code != 200:
+                raise HTTPException(status_code=502, detail="GitHub commit history could not be loaded.")
+
+        root = ET.fromstring(feed.text)
+        commits = []
+        for entry in root.iter():
+            if entry.tag.rsplit("}", 1)[-1] != "entry":
+                continue
+            fields = {}
+            link = ""
+            for child in entry:
+                tag = child.tag.rsplit("}", 1)[-1]
+                if tag in {"id", "title", "updated"}:
+                    fields[tag] = child.text or ""
+                elif tag == "author":
+                    fields["author"] = next((part.text or "" for part in child if part.tag.rsplit("}", 1)[-1] == "name"), "Unknown")
+                elif tag == "link":
+                    link = child.attrib.get("href", "")
+            sha = link.rstrip("/").split("/")[-1] if link else fields.get("id", "").rstrip("/").split("/")[-1]
+            commits.append({
+                "sha": sha[:12],
+                "message": fields.get("title", "").splitlines()[0][:180],
+                "author": fields.get("author", "Unknown"),
+                "date": fields.get("updated"),
+                "url": link or (f"https://github.com/{owner}/{repository}/commit/{sha}" if sha else None),
+            })
+            if len(commits) >= 15:
+                break
+        return {"repository": owner + "/" + repository, "commits": commits}
     except HTTPException:
         raise
+    except ET.ParseError:
+        raise HTTPException(status_code=502, detail="GitHub returned an unreadable commit feed.")
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="GitHub history lookup timed out.")
     except httpx.HTTPError:
