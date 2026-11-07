@@ -217,7 +217,7 @@ function App() {
     const url=URL.createObjectURL(blob);
     const anchor=document.createElement("a");
     anchor.href=url;
-    anchor.download=`${analysis.project_name.replace(/[^a-z0-9-_]+/gi,"-")}-orbit-report.json`;
+    anchor.download=`${analysis.project_name.replace(/[^a-z0-9-_]+/gi,"-")}-analysis-report.json`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
