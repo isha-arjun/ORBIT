@@ -264,6 +264,35 @@ def _analyze_source(path: PurePosixPath, raw: bytes) -> dict:
         return _gdscript_insights(source)
     return _javascript_insights(source)
 
+@app.post("/github/history")
+async def github_repository_history(payload: dict) -> dict:
+    owner = str(payload.get("owner", "")).strip()
+    repository = str(payload.get("repository", "")).strip()
+    valid_part = re.compile(r"^[A-Za-z0-9_.-]{1,100}$")
+    if not valid_part.fullmatch(owner) or not valid_part.fullmatch(repository) or owner in {".", ".."} or repository in {".", ".."}:
+        raise HTTPException(status_code=400, detail="Enter a valid public GitHub repository.")
+    if repository.lower().endswith(".git"):
+        repository = repository[:-4]
+    url = f"https://api.github.com/repos/{owner}/{repository}/commits?per_page=15"
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=8.0)) as client:
+            response = await client.get(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "ORBIT-Developer-Intelligence"})
+        if response.status_code == 404:
+            raise HTTPException(status_code=404, detail="Repository history is unavailable for this public repository.")
+        if response.status_code == 403:
+            raise HTTPException(status_code=429, detail="GitHub temporarily rate-limited history lookup.")
+        if response.status_code != 200:
+            raise HTTPException(status_code=502, detail="GitHub history could not be loaded.")
+        rows = response.json()
+        return {"repository": owner + "/" + repository, "commits": [{"sha": row.get("sha", "")[:12], "message": ((row.get("commit") or {}).get("message") or "").splitlines()[0][:180], "author": ((row.get("commit") or {}).get("author") or {}).get("name", "Unknown"), "date": ((row.get("commit") or {}).get("author") or {}).get("date"), "url": row.get("html_url")} for row in rows if isinstance(row, dict)]}
+    except HTTPException:
+        raise
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="GitHub history lookup timed out.")
+    except httpx.HTTPError:
+        raise HTTPException(status_code=502, detail="Could not reach GitHub for repository history.")
+
+
 @app.post("/analyze/github")
 async def analyze_github_repository(payload: dict) -> dict:
     owner = str(payload.get("owner", "")).strip()
