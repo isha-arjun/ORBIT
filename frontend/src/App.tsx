@@ -24,6 +24,7 @@ type FileInsight = {
   parser?: string;
 };
 type DependencyEdge = { from: string; to: string; specifier: string };
+type MaintenanceFinding = { id:string; kind:string; severity:"medium"|"info"; title:string; detail:string; path?:string; line?:number; evidence?:string; confidence?:string; locations?:{path:string;line:number}[] };
 type DependencyGraph = {
   summary: {
     files_mapped: number;
@@ -46,8 +47,9 @@ type CodeInsights = {
   files: FileInsight[];
   supported_languages: string[];
   dependency_graph?: DependencyGraph;
+  maintenance_findings?: MaintenanceFinding[];
 };
-type SavedSnapshot = { id:string; savedAt:string; project_name:string; summary:AnalysisResult["summary"]; languages:LanguageStat[]; files:ProjectFile[]; codeSummary:CodeInsights["summary"]; edges:DependencyEdge[] };
+type SavedSnapshot = { id:string; savedAt:string; project_name:string; summary:AnalysisResult["summary"]; languages:LanguageStat[]; files:ProjectFile[]; codeSummary:CodeInsights["summary"]; edges:DependencyEdge[]; analysis?:AnalysisResult };
 type HealthFinding = { severity:"medium"|"info"; title:string; detail:string; path?:string };
 type AnalysisResult = {
   project_name: string;
@@ -95,6 +97,8 @@ function App() {
   const [isImportingRepo,setIsImportingRepo]=useState(false);
   const [savedSnapshots,setSavedSnapshots]=useState<SavedSnapshot[]>(()=>{try{return JSON.parse(localStorage.getItem("orbit-snapshots-v1")||"[]") as SavedSnapshot[]}catch{return[]}});
   const [selectedBaseline,setSelectedBaseline]=useState("");
+  const [resolvedIssues,setResolvedIssues]=useState<string[]>(()=>{try{return JSON.parse(localStorage.getItem("orbit-resolved-issues-v1")||"[]") as string[]}catch{return[]}});
+  const [issueFilter,setIssueFilter]=useState<"all"|"open"|"resolved">("all");
 
   useEffect(() => {
     let active = true;
@@ -156,13 +160,22 @@ function App() {
 
   function saveCurrentSnapshot(){
     if(!analysis)return;
-    const snapshot:SavedSnapshot={id:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,savedAt:new Date().toISOString(),project_name:analysis.project_name,summary:analysis.summary,languages:analysis.languages,files:analysis.files,codeSummary:analysis.code_insights?.summary||{files_analyzed:0,functions_found:0,classes_found:0,imports_found:0,source_files_skipped_or_over_limit:0},edges:analysis.code_insights?.dependency_graph?.edges||[]};
+    const snapshot:SavedSnapshot={id:`${Date.now()}-${Math.random().toString(36).slice(2,8)}`,savedAt:new Date().toISOString(),project_name:analysis.project_name,summary:analysis.summary,languages:analysis.languages,files:analysis.files,codeSummary:analysis.code_insights?.summary||{files_analyzed:0,functions_found:0,classes_found:0,imports_found:0,source_files_skipped_or_over_limit:0},edges:analysis.code_insights?.dependency_graph?.edges||[],analysis};
     const next=[snapshot,...savedSnapshots].slice(0,20);setSavedSnapshots(next);
     try{localStorage.setItem("orbit-snapshots-v1",JSON.stringify(next));}catch{setError("Browser storage is full. Remove older snapshots or save a smaller project.");}
   }
+  function loadSnapshot(snapshot:SavedSnapshot){
+    if(!snapshot.analysis){setError("This older snapshot contains comparison data only. Analyze the project again to load a full workspace.");return;}
+    setAnalysis(snapshot.analysis);setSelectedFile(snapshot.analysis.files[0]||null);setSelectedBaseline("");setSearchQuery("");setLanguageFilter("All languages");setSelectedFolder("All files");setError("");
+  }
+  function toggleIssueResolved(id:string){
+    const next=resolvedIssues.includes(id)?resolvedIssues.filter(item=>item!==id):[...resolvedIssues,id];
+    setResolvedIssues(next);try{localStorage.setItem("orbit-resolved-issues-v1",JSON.stringify(next));}catch{}
+  }
+
   function exportReport(){
     if(!analysis)return;
-    const report={generated_at:new Date().toISOString(),product:"ORBIT Developer Intelligence",project:analysis.project_name,summary:analysis.summary,languages:analysis.languages,code_insights:analysis.code_insights?.summary||null,dependency_summary:analysis.code_insights?.dependency_graph?.summary||null,findings:healthFindings,notes:["Static best-effort analysis only.","Uploaded code was not executed.","This report is not a security audit."]};
+    const report={generated_at:new Date().toISOString(),product:"ORBIT Developer Intelligence",project:analysis.project_name,summary:analysis.summary,languages:analysis.languages,code_insights:analysis.code_insights?.summary||null,dependency_summary:analysis.code_insights?.dependency_graph?.summary||null,findings:allFindings,notes:["Static best-effort analysis only.","Uploaded code was not executed.","This report is not a security audit."]};
     const blob=new Blob([JSON.stringify(report,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const anchor=document.createElement("a");anchor.href=url;anchor.download=`${analysis.project_name.replace(/[^a-z0-9-_]+/gi,"-")}-orbit-report.json`;anchor.click();URL.revokeObjectURL(url);
   }
 
@@ -216,6 +229,10 @@ function App() {
     if(large.length)f.push({severity:"info",title:"Large files to review",detail:`${large.length} file(s) are at least 100 KB. Consider whether any would benefit from smaller modules.`,path:large.sort((a,b)=>b.size_bytes-a.size_bytes)[0].path});
     if(!f.length)f.push({severity:"info",title:"No structural flags detected",detail:"Current static checks found no parsing errors, skipped source files, unresolved local imports, or unusually large files. This is not a guarantee of correctness or security."});return f;},[analysis]);
   const structureScore=Math.max(0,100-healthFindings.reduce((score,item)=>score+(item.severity==="medium"?12:item.title==="No structural flags detected"?0:5),0));
+  const staticFindings=analysis?.code_insights?.maintenance_findings||[];
+  const allFindings:MaintenanceFinding[]=[...healthFindings.map((item,index)=>({id:"health:"+index+":"+item.title,kind:"structure",severity:item.severity,title:item.title,detail:item.detail,path:item.path,confidence:"heuristic" as const})),...staticFindings];
+  const visibleFindings=allFindings.filter(item=>issueFilter==="all"||(issueFilter==="resolved"?resolvedIssues.includes(item.id):!resolvedIssues.includes(item.id)));
+
   const graphNodes=useMemo(()=>{if(!dependencyGraph)return[];const names=dependencyGraph.nodes.length?dependencyGraph.nodes:[...new Set(dependencyGraph.edges.flatMap(e=>[e.from,e.to]))];return names.slice(0,28).map((path,index,all)=>{const angle=2*Math.PI*index/Math.max(all.length,1)-Math.PI/2;return{path,x:400+Math.cos(angle)*(all.length>1?178:0),y:245+Math.sin(angle)*(all.length>1?178:0)};});},[dependencyGraph]);
   const graphPosition=new Map(graphNodes.map(node=>[node.path,node] as const));
   const baseline=savedSnapshots.find(snapshot=>snapshot.id===selectedBaseline);const baselinePaths=new Set(baseline?.files.map(f=>f.path)||[]);const currentPaths=new Set(analysis?.files.map(f=>f.path)||[]);
@@ -451,11 +468,11 @@ function App() {
               </section>
             )}
 
-            <section className="issues-panel" id="project-issues"><div className="explorer-heading"><div><p className="eyebrow">STATIC REVIEW</p><h4>Maintenance signals</h4></div><span className="explorer-count">{healthFindings.length} findings</span></div><div className="finding-list">{healthFindings.map((finding,index)=><article className={`finding-card finding-${finding.severity}`} key={finding.title+index}><span className="finding-severity">{finding.severity==="medium"?"REVIEW":"INFO"}</span><div><strong>{finding.title}</strong><p>{finding.detail}</p>{finding.path&&<code>{finding.path}</code>}</div></article>)}</div><p className="explorer-footnote">Structural maintenance hints only, not security findings. ORBIT does not execute uploaded code or perform a full vulnerability audit.</p></section>
+            <section className="issues-panel" id="project-issues"><div className="explorer-heading"><div><p className="eyebrow">ACTIONABLE REVIEW</p><h4>Findings center</h4></div><span className="explorer-count">{allFindings.length} findings · {allFindings.filter(item=>!resolvedIssues.includes(item.id)).length} open</span></div><div className="issue-toolbar"><div className="issue-filters"><button className={issueFilter==="all"?"active":""} onClick={()=>setIssueFilter("all")}>All</button><button className={issueFilter==="open"?"active":""} onClick={()=>setIssueFilter("open")}>Open</button><button className={issueFilter==="resolved"?"active":""} onClick={()=>setIssueFilter("resolved")}>Resolved</button></div><span>Resolution state saved in this browser</span></div><div className="finding-list">{visibleFindings.map(finding=><article className={"finding-card finding-"+finding.severity+(resolvedIssues.includes(finding.id)?" finding-resolved":"")} key={finding.id}><span className="finding-severity">{finding.severity==="medium"?"REVIEW":"INFO"}</span><div className="finding-main"><strong>{finding.title}</strong><p>{finding.detail}</p>{finding.path&&<button className="finding-path" onClick={()=>{const file=analysis.files.find(item=>item.path===finding.path);if(file){setSelectedFile(file);document.getElementById("project-explorer")?.scrollIntoView({behavior:"smooth",block:"start"});}}}>{finding.path}{finding.line?" · line "+finding.line:""} ↗</button>}{finding.evidence&&<code className="finding-evidence">{finding.evidence}</code>}{finding.locations&&<div className="finding-locations">{finding.locations.map(location=><span key={location.path+location.line}>{location.path}:{location.line}</span>)}</div>}<small className="finding-confidence">{finding.confidence==="direct"?"Direct source marker":"Heuristic candidate"} · verify before changing code</small></div><button className="resolve-button" onClick={()=>toggleIssueResolved(finding.id)}>{resolvedIssues.includes(finding.id)?"Reopen":"Resolve"}</button></article>)}{!visibleFindings.length&&<p className="insight-empty">No findings in this view.</p>}</div><p className="explorer-footnote">Dead-code and duplicate-code results are candidates, not proof. Dynamic calls, reflection, framework hooks, generated code, and intentional duplication can create false positives. ORBIT does not execute uploaded code or perform a security audit.</p></section>
 <section className="history-panel" id="project-history"><div className="explorer-heading"><div><p className="eyebrow">PROJECT HISTORY</p><h4>Snapshots & version comparison</h4></div><span className="explorer-count">{savedSnapshots.length} saved snapshots</span></div>
 {savedSnapshots.length?<><div className="history-controls"><select value={selectedBaseline} onChange={event=>setSelectedBaseline(event.target.value)} aria-label="Choose a saved snapshot to compare"><option value="">Choose a previous snapshot to compare</option>{savedSnapshots.map(snapshot=><option key={snapshot.id} value={snapshot.id}>{snapshot.project_name} · {new Date(snapshot.savedAt).toLocaleString()}</option>)}</select></div>
 {baseline?<><div className="comparison-grid"><div><strong>{addedFiles.length}</strong><span>Added files</span></div><div><strong>{removedFiles.length}</strong><span>Removed files</span></div><div><strong>{addedEdges.length}</strong><span>New dependencies</span></div><div><strong>{removedEdges.length}</strong><span>Removed dependencies</span></div></div><div className="comparison-details"><div><h5>Added files</h5>{addedFiles.slice(0,12).map(file=><code key={file.path}>+ {file.path}</code>)}{!addedFiles.length&&<span>None</span>}</div><div><h5>Removed files</h5>{removedFiles.slice(0,12).map(file=><code key={file.path}>− {file.path}</code>)}{!removedFiles.length&&<span>None</span>}</div><div><h5>Dependency changes</h5>{addedEdges.slice(0,12).map(edge=><code key={edge}>+ {edge}</code>)}{removedEdges.slice(0,12).map(edge=><code key={edge}>− {edge}</code>)}{!addedEdges.length&&!removedEdges.length&&<span>None detected</span>}</div></div></>:<p className="insight-empty">Save this analysis and another version, then select a previous snapshot to compare structural changes.</p>}
-<div className="saved-snapshot-list">{savedSnapshots.slice(0,10).map(snapshot=><div key={snapshot.id}><span><strong>{snapshot.project_name}</strong><small>{new Date(snapshot.savedAt).toLocaleString()}</small></span><span>{snapshot.summary.files_scanned.toLocaleString()} files</span></div>)}</div></>:<p className="insight-empty">No saved versions yet. Use “Save snapshot” after analyzing a project to start tracking its structure over time.</p>}
+<div className="saved-snapshot-list">{savedSnapshots.slice(0,10).map(snapshot=><div key={snapshot.id}><span><strong>{snapshot.project_name}</strong><small>{new Date(snapshot.savedAt).toLocaleString()}</small></span><span>{snapshot.summary.files_scanned.toLocaleString()} files</span><button onClick={()=>loadSnapshot(snapshot)} disabled={!snapshot.analysis}>Open workspace</button></div>)}</div></>:<p className="insight-empty">No saved versions yet. Use “Save snapshot” after analyzing a project to start tracking its structure over time.</p>}
 <p className="explorer-footnote">Snapshots are stored in this browser only. They are not synced across devices or sent to GitHub.</p></section><p className="safety-note">✓ {analysis.safety.note}</p>
           </div>
         )}
