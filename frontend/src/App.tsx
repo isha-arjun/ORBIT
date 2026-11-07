@@ -350,9 +350,12 @@ function App() {
   const baseline=savedSnapshots.find(snapshot=>snapshot.id===selectedBaseline&&snapshot.project_name===analysis?.project_name);const baselinePaths=new Set(baseline?.files.map(f=>f.path)||[]);const currentPaths=new Set(analysis?.files.map(f=>f.path)||[]);
   const addedFiles=analysis?analysis.files.filter(f=>!baselinePaths.has(f.path)):[];const removedFiles=baseline?baseline.files.filter(f=>!currentPaths.has(f.path)):[];
   const currentFilesByPath=new Map<string,ProjectFile>((analysis?.files||[]).map(file=>[file.path,file] as const));
-  const sharedBaselineFiles=baseline?.files.filter(file=>currentFilesByPath.has(file.path))||[];
-  const modifiedFiles=sharedBaselineFiles.filter(file=>{const current=currentFilesByPath.get(file.path);return Boolean(file.content_sha256&&current?.content_sha256&&file.content_sha256!==current.content_sha256);});
-  const modifiedFilesComparable=Boolean(baseline&&analysis&&sharedBaselineFiles.every(file=>Boolean(file.content_sha256&&currentFilesByPath.get(file.path)?.content_sha256)));
+  const fingerprintExtensions=new Set([".py",".pyi",".js",".jsx",".mjs",".cjs",".ts",".tsx",".gd"]);
+  const baselineSourceFiles=baseline?.files.filter(file=>fingerprintExtensions.has(file.extension))||[];
+  const currentSourceFiles=(analysis?.files||[]).filter(file=>fingerprintExtensions.has(file.extension));
+  const sharedBaselineSourceFiles=baselineSourceFiles.filter(file=>currentFilesByPath.has(file.path));
+  const modifiedFiles=sharedBaselineSourceFiles.filter(file=>{const current=currentFilesByPath.get(file.path);return Boolean(file.content_sha256&&current?.content_sha256&&file.content_sha256!==current.content_sha256);});
+  const modifiedFilesComparable=Boolean(baseline&&analysis&&(!baselineSourceFiles.length||!currentSourceFiles.length||!sharedBaselineSourceFiles.length||sharedBaselineSourceFiles.every(file=>Boolean(file.content_sha256&&currentFilesByPath.get(file.path)?.content_sha256))));
   const currentEdges=new Set(dependencyGraph?.edges.map(e=>`${e.from}→${e.to}`)||[]);const baselineEdges=new Set(baseline?.edges.map(e=>`${e.from}→${e.to}`)||[]);
   const addedEdges=[...currentEdges].filter(e=>!baselineEdges.has(e));const removedEdges=[...baselineEdges].filter(e=>!currentEdges.has(e));
   const currentSymbols=collectSymbols(analysis?.code_insights?.files);
