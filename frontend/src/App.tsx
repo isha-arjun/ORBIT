@@ -278,7 +278,7 @@ function App() {
   function exportReport(){
     if(!analysis)return;
     const report={
-      schema_version:"1.1",
+      schema_version:"1.2",
       generated_at:new Date().toISOString(),
       product:"ORBIT Developer Intelligence",
       project:analysis.project_name,
@@ -288,6 +288,25 @@ function App() {
       inventory:{folders:analysis.folders,files:analysis.files.map(file=>({path:file.path,language:file.language,size_bytes:file.size_bytes,extension:file.extension}))},
       code_insights:analysis.code_insights?{summary:analysis.code_insights.summary,supported_languages:analysis.code_insights.supported_languages,files:analysis.code_insights.files,dependency_graph:analysis.code_insights.dependency_graph||null,maintenance_findings:analysis.code_insights.maintenance_findings||[]}:null,
       findings:allFindings.map(item=>({...item,resolved:resolvedIssues.includes(item.id)})),
+      snapshot_comparison:baseline?{
+        baseline_saved_at:baseline.savedAt,
+        added_files:addedFiles.map(file=>file.path),
+        removed_files:removedFiles.map(file=>file.path),
+        modified_files:modifiedFiles.map(file=>file.path),
+        modified_files_comparable:modifiedFilesComparable,
+        added_dependency_edges:addedEdges,
+        removed_dependency_edges:removedEdges,
+        added_symbols:addedSymbols,
+        removed_symbols:removedSymbols,
+        change_impact:changeImpact?{
+          changed_count:changeImpact.changedCount,
+          direct_dependents:changeImpact.directCount,
+          transitive_dependents:changeImpact.transitiveCount,
+          impacted_files:changeImpact.impactedFiles,
+          affected_findings:changeImpact.affectedFindings.map(item=>({id:item.id,title:item.title,path:item.path})),
+          truncated:changeImpact.truncated,
+        }:null,
+      }:null,
       notes:["Static best-effort analysis only.","Uploaded code was not executed.","This report is not a security audit.","Symbol detection and dependency mapping are heuristic and may be incomplete."]
     };
     const blob=new Blob([JSON.stringify(report,null,2)],{type:"application/json"});
