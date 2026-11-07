@@ -772,3 +772,16 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;op
 
 @media(max-width:760px){.comparison-details{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){.comparison-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.comparison-details{grid-template-columns:1fr}}
+
+/* Findings search and severity controls */
+.finding-tools{display:flex;align-items:center;gap:7px;flex:1;min-width:220px;max-width:430px}
+.finding-search{display:flex;align-items:center;gap:7px;flex:1;min-width:0;padding:0 9px;border:1px solid rgba(142,184,255,.17);border-radius:7px;background:rgba(5,11,21,.25);color:#8fa8ca}
+.finding-search span{font-size:15px}
+.finding-search input{width:100%;min-width:0;height:32px;border:0;outline:0;background:transparent;color:#dce8fa;font-size:10px}
+.finding-search input::placeholder{color:#73849d}
+.finding-severity-filter{height:34px;max-width:125px;padding:0 8px;border:1px solid rgba(142,184,255,.17);border-radius:7px;background:#111b2a;color:#c4d4eb;font-size:10px}
+:root[data-theme="light"] .finding-search{border-color:rgba(43,67,105,.16);background:#fff;color:#647895}
+:root[data-theme="light"] .finding-search input{color:#243852}
+:root[data-theme="light"] .finding-search input::placeholder{color:#8a98ad}
+:root[data-theme="light"] .finding-severity-filter{border-color:rgba(43,67,105,.16);background:#fff;color:#526782}
+@media(max-width:650px){.finding-tools{width:100%;max-width:none}.finding-severity-filter{max-width:145px}}
