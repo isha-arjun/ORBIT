@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { buildDeveloperActions, rankCodebaseMatches } from "./developerGuide.mjs";
 
 type GuideFile = { path: string; name: string; language: string };
@@ -16,10 +16,13 @@ export default function DeveloperCompanion({ files, insights, findings, edges = 
   const [query, setQuery] = useState("");
   const [answerQuery, setAnswerQuery] = useState("");
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const actions = useMemo(() => buildDeveloperActions(files, insights, findings, { edges }), [files, insights, findings, edges]);
   const matches = useMemo(() => rankCodebaseMatches(query, files, insights, findings), [query, files, insights, findings]);
   const answers = useMemo(() => rankCodebaseMatches(answerQuery, files, insights, findings), [answerQuery, files, insights, findings]);
+  const paletteItems = useMemo(() => (query.trim() ? matches : files.slice(0, 8).map(file => ({ path: file.path, language: file.language, reasons: ["Project file"], findingCount: 0 }))).slice(0, 8), [query, matches, files]);
+  useEffect(() => setActiveIndex(0), [query]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -41,6 +44,12 @@ export default function DeveloperCompanion({ files, insights, findings, edges = 
     onSelectFile(path);
     setPaletteOpen(false);
     document.getElementById("project-explorer")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function handlePaletteKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "ArrowDown") { event.preventDefault(); setActiveIndex(index => Math.min(index + 1, Math.max(0, paletteItems.length - 1))); }
+    if (event.key === "ArrowUp") { event.preventDefault(); setActiveIndex(index => Math.max(0, index - 1)); }
+    if (event.key === "Enter" && paletteItems[activeIndex]) { event.preventDefault(); select(paletteItems[activeIndex].path); }
   }
 
   function submitQuestion(event: FormEvent<HTMLFormElement>) {
@@ -76,11 +85,11 @@ export default function DeveloperCompanion({ files, insights, findings, edges = 
       {paletteOpen && <div className="command-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPaletteOpen(false); }}>
         <section className="command-palette" role="dialog" aria-modal="true" aria-labelledby="command-palette-title">
           <div className="command-palette-title"><strong id="command-palette-title">Jump to a file</strong><button type="button" onClick={() => setPaletteOpen(false)} aria-label="Close command palette">Esc</button></div>
-          <input ref={inputRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Type a path, language, symbol, or import…" aria-label="Search project files" />
-          <div className="command-results">{(query.trim() ? matches : files.slice(0, 8).map(file => ({ path: file.path, language: file.language, reasons: ["Project file"], findingCount: 0 }))).map(item => <button type="button" key={item.path} onClick={() => select(item.path)}><span><code>{item.path}</code><small>{item.reasons.join(" · ")}</small></span><b>{item.language}</b></button>)}
+          <input ref={inputRef} value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={handlePaletteKeyDown} placeholder="Type a path, language, symbol, or import…" aria-label="Search project files" aria-controls="orbit-command-results" aria-activedescendant={paletteItems[activeIndex] ? "orbit-command-option-" + activeIndex : undefined} />
+          <div className="command-results" id="orbit-command-results" role="listbox">{paletteItems.map((item, index) => <button type="button" role="option" aria-selected={activeIndex === index} id={"orbit-command-option-" + index} key={item.path} onMouseEnter={() => setActiveIndex(index)} onClick={() => select(item.path)}><span><code>{item.path}</code><small>{item.reasons.join(" · ")}</small></span><b>{item.language}</b></button>)}
             {query.trim() && !matches.length && <p>No matching files. Try a shorter term or a symbol name.</p>}
           </div>
-          <div className="command-hint">↑ Search metadata · Enter a result to open it · Esc to close</div>
+          <div className="command-hint">↑ / ↓ Move · Enter to open · Esc to close</div>
         </section>
       </div>}
     </section>
