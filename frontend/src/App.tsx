@@ -2,6 +2,7 @@ import { ChangeEvent, useEffect, useMemo, useState } from "react";
 
 type ApiState = "checking" | "online" | "offline";
 type GitCommit = {sha:string;message:string;author:string;date?:string;url?:string};
+type RecentRepository = {owner:string;repository:string;lastOpened:string};
 type LanguageStat = { name: string; files: number };
 type ProjectFile = {
   path: string;
@@ -95,6 +96,7 @@ function App() {
   const [selectedFile, setSelectedFile] = useState<ProjectFile | null>(null);
   const [collapsedFolders, setCollapsedFolders] = useState<string[]>([]);
   const [githubRepo,setGithubRepo]=useState("");
+  const [recentRepositories,setRecentRepositories]=useState<RecentRepository[]>(()=>{try{return JSON.parse(localStorage.getItem("orbit-recent-repositories-v1")||"[]") as RecentRepository[]}catch{return[]}});
   const [githubHistory,setGithubHistory]=useState<{repository:string;commits:GitCommit[]}|null>(null);
   const [historyLoading,setHistoryLoading]=useState(false);
   const [historyError,setHistoryError]=useState("");
@@ -171,6 +173,8 @@ function App() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.detail || `Repository import failed (HTTP ${response.status}).`);
       const result = data as AnalysisResult;
+      const recent=[{owner,repository,lastOpened:new Date().toISOString()},...recentRepositories.filter(item=>!(item.owner.toLowerCase()===owner.toLowerCase()&&item.repository.toLowerCase()===repository.toLowerCase()))].slice(0,5);
+      setRecentRepositories(recent);try{localStorage.setItem("orbit-recent-repositories-v1",JSON.stringify(recent));}catch{}
       setAnalysis(result); setSelectedFile(result.files[0] || null);
       setSearchQuery(""); setLanguageFilter("All languages"); setSelectedFolder("All files"); setCollapsedFolders([]);
       await loadGithubHistory(owner,repository);
@@ -304,7 +308,7 @@ function App() {
           <span>{isAnalyzing ? "Reading archive structure" : "Select a project ZIP · Maximum 50 MB"}</span>
           <span className="upload-action">{isAnalyzing ? "PLEASE WAIT" : "SELECT PROJECT"}</span>
         </label>
-        <div className="github-import"><span className="github-import-label">OR IMPORT A PUBLIC REPOSITORY</span><div className="github-import-row"><input value={githubRepo} onChange={event=>setGithubRepo(event.target.value)} onKeyDown={event=>{if(event.key==="Enter")void importGithubRepository();}} placeholder="https://github.com/owner/repository" aria-label="Public GitHub repository URL" autoComplete="url"/><button type="button" onClick={importGithubRepository} disabled={isImportingRepo||isAnalyzing||apiState!=="online"}>{isImportingRepo?"IMPORTING…":"IMPORT GITHUB"}</button></div><p>Public repositories only. Paste a repository URL and press Enter or Import. Private repositories are not accessed.</p></div><p className="upload-guidance">Godot tip: ZIP the project folder containing project.godot. ORBIT skips the generated .godot cache automatically. Keep the ZIP under 50 MB.</p>
+        <div className="github-import"><span className="github-import-label">OR IMPORT A PUBLIC REPOSITORY</span><div className="github-import-row"><input value={githubRepo} onChange={event=>setGithubRepo(event.target.value)} onKeyDown={event=>{if(event.key==="Enter")void importGithubRepository();}} placeholder="https://github.com/owner/repository" aria-label="Public GitHub repository URL" autoComplete="url"/><button type="button" onClick={importGithubRepository} disabled={isImportingRepo||isAnalyzing||apiState!=="online"}>{isImportingRepo?"IMPORTING…":"IMPORT GITHUB"}</button></div><p>Public repositories only. Paste a repository URL and press Enter or Import. Private repositories are not accessed.</p>{recentRepositories.length>0&&<div className="recent-repositories"><div className="recent-repositories-heading"><span>RECENT IMPORTS</span><button type="button" onClick={()=>{setRecentRepositories([]);try{localStorage.removeItem("orbit-recent-repositories-v1");}catch{}}}>Clear</button></div><div className="recent-repository-list">{recentRepositories.map(item=><button type="button" key={item.owner+"/"+item.repository} onClick={()=>setGithubRepo("https://github.com/"+item.owner+"/"+item.repository)} title={"Use "+item.owner+"/"+item.repository}>{item.owner}/{item.repository}</button>)}</div></div>}</div><p className="upload-guidance">Godot tip: ZIP the project folder containing project.godot. ORBIT skips the generated .godot cache automatically. Keep the ZIP under 50 MB.</p>
         {apiState !== "online" && <p className="helper-text">The analyzer becomes available when the backend is connected.</p>}
         {error && <p className="error-message" role="alert">{error}</p>}
 
