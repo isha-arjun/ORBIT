@@ -896,3 +896,6 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;op
 :root[data-theme="light"] .pr-changed-files code{color:#315fba}
 :root[data-theme="light"] .pr-related span{color:#536781}
 @media(max-width:600px){.pr-impact-heading{align-items:flex-start;flex-direction:column}.pr-row{align-items:flex-start}.pr-impact-metrics{gap:12px}}
+
+.command-results>button[aria-selected="true"]{border-color:rgba(142,184,255,.4);background:rgba(105,146,214,.13)}
+:root[data-theme="light"] .command-results>button[aria-selected="true"]{border-color:rgba(49,95,186,.35);background:#eaf1fc}
