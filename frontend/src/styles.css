@@ -559,3 +559,53 @@ footer { border-top-color: var(--orbit-line); }
     flex-wrap: wrap;
   }
 }
+
+
+/* Recently imported repositories */
+.recent-repositories {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,.07);
+}
+.recent-repositories-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 9px;
+  color: #7f8da4;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .13em;
+}
+.recent-repositories-heading button {
+  border: 0;
+  background: transparent;
+  color: #8293ad;
+  font-size: 9px;
+  cursor: pointer;
+}
+.recent-repositories-heading button:hover { color: #d8e6fb; }
+.recent-repository-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.recent-repository-list button {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 7px 9px;
+  border: 1px solid rgba(142,184,255,.14);
+  border-radius: 7px;
+  background: rgba(142,184,255,.055);
+  color: #a9c5ef;
+  font: 9px ui-monospace, SFMono-Regular, Menlo, monospace;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease;
+}
+.recent-repository-list button:hover {
+  border-color: rgba(142,184,255,.42);
+  background: rgba(142,184,255,.13);
+}
