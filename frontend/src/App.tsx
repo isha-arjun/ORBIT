@@ -349,6 +349,10 @@ function App() {
   const graphPosition=new Map(graphNodes.map(node=>[node.path,node] as const));
   const baseline=savedSnapshots.find(snapshot=>snapshot.id===selectedBaseline&&snapshot.project_name===analysis?.project_name);const baselinePaths=new Set(baseline?.files.map(f=>f.path)||[]);const currentPaths=new Set(analysis?.files.map(f=>f.path)||[]);
   const addedFiles=analysis?analysis.files.filter(f=>!baselinePaths.has(f.path)):[];const removedFiles=baseline?baseline.files.filter(f=>!currentPaths.has(f.path)):[];
+  const currentFilesByPath=new Map((analysis?.files||[]).map(file=>[file.path,file]));
+  const sharedBaselineFiles=baseline?.files.filter(file=>currentFilesByPath.has(file.path))||[];
+  const modifiedFiles=sharedBaselineFiles.filter(file=>{const current=currentFilesByPath.get(file.path);return Boolean(file.content_sha256&&current?.content_sha256&&file.content_sha256!==current.content_sha256);});
+  const modifiedFilesComparable=Boolean(baseline&&analysis&&sharedBaselineFiles.every(file=>Boolean(file.content_sha256&&currentFilesByPath.get(file.path)?.content_sha256)));
   const currentEdges=new Set(dependencyGraph?.edges.map(e=>`${e.from}→${e.to}`)||[]);const baselineEdges=new Set(baseline?.edges.map(e=>`${e.from}→${e.to}`)||[]);
   const addedEdges=[...currentEdges].filter(e=>!baselineEdges.has(e));const removedEdges=[...baselineEdges].filter(e=>!currentEdges.has(e));
   const currentSymbols=collectSymbols(analysis?.code_insights?.files);
