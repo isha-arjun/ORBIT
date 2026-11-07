@@ -2,6 +2,7 @@ from collections import Counter
 from io import BytesIO, StringIO
 from pathlib import PurePosixPath
 import ast
+import html
 import posixpath
 import re
 import stat
@@ -382,16 +383,24 @@ async def github_repository_history(payload: dict) -> dict:
             link = ""
             for child in entry:
                 tag = child.tag.rsplit("}", 1)[-1]
-                if tag in {"id", "title", "updated"}:
-                    fields[tag] = child.text or ""
+                if tag in {"id", "title", "updated", "content"}:
+                    fields[tag] = "".join(child.itertext()).strip()
                 elif tag == "author":
-                    fields["author"] = next((part.text or "" for part in child if part.tag.rsplit("}", 1)[-1] == "name"), "Unknown")
+                    author_name = next((part for part in child if part.tag.rsplit("}", 1)[-1] == "name"), None)
+                    fields["author"] = "".join(author_name.itertext()).strip() if author_name is not None else "Unknown"
                 elif tag == "link":
                     link = child.attrib.get("href", "")
             sha = link.rstrip("/").split("/")[-1] if link else fields.get("id", "").rstrip("/").split("/")[-1]
+            message = fields.get("title", "").strip()
+            if not message:
+                # Some Atom responses expose the subject in the HTML content
+                # element even when the title node is empty.
+                content_text = html.unescape(fields.get("content", ""))
+                content_text = re.sub(r"<[^>]*>", " ", content_text)
+                message = " ".join(content_text.split())
             commits.append({
                 "sha": sha[:12],
-                "message": fields.get("title", "").splitlines()[0][:180],
+                "message": message.splitlines()[0][:180] if message else "(commit message unavailable)",
                 "author": fields.get("author", "Unknown"),
                 "date": fields.get("updated"),
                 "url": link or (f"https://github.com/{owner}/{repository}/commit/{sha}" if sha else None),
