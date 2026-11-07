@@ -88,7 +88,7 @@ function normalizeFolder(folder: string): string {
 function App() {
   const [apiState, setApiState] = useState<ApiState>("checking");
   const [theme,setTheme] = useState<"dark"|"light">(()=>{try{return localStorage.getItem("orbit-theme-v1")==="light"?"light":"dark"}catch{return"dark"}});
-  useEffect(()=>{document.documentElement.dataset.theme=theme;try{localStorage.setItem("orbit-theme-v1",theme)}catch{}},[theme]);
+  useEffect(()=>{document.documentElement.dataset.theme=theme;document.querySelector('meta[name="theme-color"]')?.setAttribute("content",theme==="light"?"#f4f7fc":"#10131a");try{localStorage.setItem("orbit-theme-v1",theme)}catch{}},[theme]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState("");
