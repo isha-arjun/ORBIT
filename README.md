@@ -21,7 +21,7 @@ ORBIT is a cloud-hosted developer intelligence workspace. It creates a structura
 - Up to five recently imported public repositories remembered locally for quick re-entry.
 - Local project snapshots and comparisons of added/removed files, modified source files (using SHA-256 fingerprints, not retained source text), dependency edges, and detected functions/classes/signals; up to 20 snapshots are retained in the current browser.
 - Snapshot change-impact review: traces direct and transitive dependents of changed files using the union of baseline and current dependency edges, then surfaces findings attached to changed or connected files. This is a static review estimate, not a regression prediction; incomplete fingerprints can make modified-file impact incomplete.
-- Downloadable versioned JSON analysis reports containing project inventory, health indicators, code insights, dependency graph data, and findings with local resolution states.
+- Downloadable versioned JSON analysis reports containing project inventory, health indicators, code insights, dependency graph data, findings with local resolution states, and (when selected) snapshot diffs plus change-impact estimates.
 
 ## Analysis limits
 
