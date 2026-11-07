@@ -87,6 +87,8 @@ function normalizeFolder(folder: string): string {
 
 function App() {
   const [apiState, setApiState] = useState<ApiState>("checking");
+  const [theme,setTheme] = useState<"dark"|"light">(()=>{try{return localStorage.getItem("orbit-theme-v1")==="light"?"light":"dark"}catch{return"dark"}});
+  useEffect(()=>{document.documentElement.dataset.theme=theme;try{localStorage.setItem("orbit-theme-v1",theme)}catch{}},[theme]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState("");
@@ -301,7 +303,7 @@ function App() {
     <main className="shell">
       <header className="topbar">
         <a className="wordmark" href="/" aria-label="ORBIT home"><span className="wordmark-mark">O</span>ORBIT</a>
-        <span className="topbar-label">DEVELOPER INTELLIGENCE / STATIC ANALYSIS</span>
+        <div className="topbar-tools"><span className="topbar-label">DEVELOPER INTELLIGENCE / STATIC ANALYSIS</span><button className="theme-toggle" type="button" onClick={()=>setTheme(current=>current==="dark"?"light":"dark")} aria-label={`Switch to ${theme==="dark"?"light":"dark"} mode`} title={`Switch to ${theme==="dark"?"light":"dark"} mode`}><span aria-hidden="true">{theme==="dark"?"☼":"◐"}</span><span>{theme==="dark"?"LIGHT":"DARK"}</span></button></div>
       </header>
 
       <section className="hero">
