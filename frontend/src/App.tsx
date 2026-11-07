@@ -182,7 +182,7 @@ function App() {
 
   function exportReport(){
     if(!analysis)return;
-    const report={generated_at:new Date().toISOString(),product:"ORBIT Developer Intelligence",project:analysis.project_name,summary:analysis.summary,languages:analysis.languages,code_insights:analysis.code_insights?.summary||null,dependency_summary:analysis.code_insights?.dependency_graph?.summary||null,findings:allFindings,notes:["Static best-effort analysis only.","Uploaded code was not executed.","This report is not a security audit."]};
+    const report={generated_at:new Date().toISOString(),product:"ORBIT Developer Intelligence",project:analysis.project_name,summary:analysis.summary,languages:analysis.languages,code_insights:analysis.code_insights?.summary||null,dependency_summary:analysis.code_insights?.dependency_graph?.summary||null,findings:allFindings.map(item=>({...item,resolved:resolvedIssues.includes(item.id)})),notes:["Static best-effort analysis only.","Uploaded code was not executed.","This report is not a security audit."]};
     const blob=new Blob([JSON.stringify(report,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const anchor=document.createElement("a");anchor.href=url;anchor.download=`${analysis.project_name.replace(/[^a-z0-9-_]+/gi,"-")}-orbit-report.json`;anchor.click();URL.revokeObjectURL(url);
   }
 
@@ -237,7 +237,7 @@ function App() {
     if(!f.length)f.push({severity:"info",title:"No structural flags detected",detail:"Current static checks found no parsing errors, skipped source files, unresolved local imports, or unusually large files. This is not a guarantee of correctness or security."});return f;},[analysis]);
   const structureScore=Math.max(0,100-healthFindings.reduce((score,item)=>score+(item.severity==="medium"?12:item.title==="No structural flags detected"?0:5),0));
   const staticFindings=analysis?.code_insights?.maintenance_findings||[];
-  const allFindings:MaintenanceFinding[]=[...healthFindings.map((item,index)=>({id:"health:"+index+":"+item.title,kind:"structure",severity:item.severity,title:item.title,detail:item.detail,path:item.path,confidence:"heuristic" as const})),...staticFindings];
+  const allFindings:MaintenanceFinding[]=[...healthFindings.map((item,index)=>({id:(analysis?.project_name||"project")+":health:"+index+":"+item.title,kind:"structure",severity:item.severity,title:item.title,detail:item.detail,path:item.path,confidence:"heuristic" as const})),...staticFindings.map(item=>({...item,id:(analysis?.project_name||"project")+":"+item.id}))];
   const visibleFindings=allFindings.filter(item=>issueFilter==="all"||(issueFilter==="resolved"?resolvedIssues.includes(item.id):!resolvedIssues.includes(item.id)));
 
   const graphNodes=useMemo(()=>{if(!dependencyGraph)return[];const names=dependencyGraph.nodes.length?dependencyGraph.nodes:[...new Set(dependencyGraph.edges.flatMap(e=>[e.from,e.to]))];return names.slice(0,28).map((path,index,all)=>{const angle=2*Math.PI*index/Math.max(all.length,1)-Math.PI/2;return{path,x:400+Math.cos(angle)*(all.length>1?178:0),y:245+Math.sin(angle)*(all.length>1?178:0)};});},[dependencyGraph]);
