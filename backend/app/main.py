@@ -4,6 +4,7 @@ from io import BytesIO, StringIO
 from pathlib import PurePosixPath
 import ast
 import html
+import os
 import posixpath
 import re
 import stat
@@ -42,6 +43,16 @@ app.add_middleware(CORSMiddleware, allow_origins=FRONTEND_ORIGINS, allow_credent
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok", "service": "orbit-api"}
+
+
+@app.get("/version")
+def version_info() -> dict[str, str]:
+    return {
+        "service": "orbit-api",
+        "version": app.version,
+        "commit": os.getenv("RENDER_GIT_COMMIT", "unknown")[:40],
+        "branch": os.getenv("RENDER_GIT_BRANCH", "unknown")[:80],
+    }
 
 def _safe_archive_path(raw_name: str) -> PurePosixPath:
     if not raw_name or "\x00" in raw_name or "\\" in raw_name:
