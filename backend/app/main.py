@@ -11,6 +11,7 @@ import httpx
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from urllib.parse import quote
 
 app = FastAPI(title="ORBIT API", description="Developer intelligence API", version="0.4.0")
 FRONTEND_ORIGINS = ["https://orbit-clear-board.vercel.app", "https://orbit-jade-rho.vercel.app"]
@@ -302,21 +303,34 @@ async def analyze_github_repository(payload: dict) -> dict:
         raise HTTPException(status_code=400, detail="Enter a valid public GitHub repository.")
     if repository.lower().endswith(".git"):
         repository = repository[:-4]
-    archive_url = f"https://api.github.com/repos/{owner}/{repository}/zipball"
     chunks = []
     total_bytes = 0
     try:
         timeout = httpx.Timeout(45.0, connect=10.0)
+        headers = {"User-Agent": "ORBIT-Developer-Intelligence", "Accept": "text/html"}
         async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
-            async with client.stream(
-                "GET",
-                archive_url,
-                headers={"Accept": "application/vnd.github+json", "User-Agent": "ORBIT-Developer-Intelligence"},
-            ) as response:
+            # GitHub's API archive endpoint consumes the unauthenticated API quota.
+            # Read the public repository page to discover its default branch, then
+            # download the archive from codeload.github.com instead.
+            page = await client.get(f"https://github.com/{owner}/{repository}", headers=headers)
+            if page.status_code == 404:
+                raise HTTPException(status_code=404, detail="Repository not found or not public.")
+            if page.status_code in {403, 429}:
+                raise HTTPException(status_code=429, detail="GitHub is temporarily limiting requests to this repository. Try again later or upload a ZIP.")
+            if page.status_code != 200:
+                raise HTTPException(status_code=502, detail=f"GitHub could not open this repository page (HTTP {page.status_code}).")
+            branch_match = re.search(r'"defaultBranch"\s*:\s*"([^"]+)"', page.text)
+            if not branch_match:
+                branch_match = re.search(r'defaultBranch\s*[:=]\s*["\\]([^"\\]+)', page.text)
+            if not branch_match:
+                raise HTTPException(status_code=502, detail="ORBIT could not identify this repository's default branch. Upload a ZIP instead.")
+            default_branch = branch_match.group(1)
+            archive_url = f"https://codeload.github.com/{owner}/{repository}/zip/refs/heads/{quote(default_branch, safe='')}"
+            async with client.stream("GET", archive_url, headers={"User-Agent": "ORBIT-Developer-Intelligence"}) as response:
                 if response.status_code == 404:
-                    raise HTTPException(status_code=404, detail="Repository not found or not public.")
-                if response.status_code == 403:
-                    raise HTTPException(status_code=429, detail="GitHub temporarily rate-limited this import. Try again later or upload a ZIP.")
+                    raise HTTPException(status_code=404, detail="The repository's default branch archive was not found. Check that the repository is public.")
+                if response.status_code in {403, 429}:
+                    raise HTTPException(status_code=429, detail="GitHub is temporarily limiting archive downloads. Try again later or upload a ZIP.")
                 if response.status_code != 200:
                     raise HTTPException(status_code=502, detail=f"GitHub could not provide this repository archive (HTTP {response.status_code}).")
                 async for chunk in response.aiter_bytes():
