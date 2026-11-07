@@ -1,6 +1,7 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 
 type ApiState = "checking" | "online" | "offline";
+type ApiVersion = { commit?:string; branch?:string; version?:string };
 type GitCommit = {sha:string;message:string;author:string;date?:string;url?:string};
 type RecentRepository = {owner:string;repository:string;lastOpened:string};
 type LanguageStat = { name: string; files: number };
@@ -149,6 +150,7 @@ function deriveArchitectureInsights(graph:DependencyGraph):ArchitectureInsights{
 
 function App() {
   const [apiState, setApiState] = useState<ApiState>("checking");
+  const [apiVersion,setApiVersion]=useState<ApiVersion|null>(null);
   const [theme,setTheme] = useState<"dark"|"light">(()=>{try{return localStorage.getItem("orbit-theme-v1")==="light"?"light":"dark"}catch{return"dark"}});
   useEffect(()=>{document.documentElement.setAttribute("data-theme",theme);document.querySelector('meta[name="theme-color"]')?.setAttribute("content",theme==="light"?"#f4f7fc":"#10131a");try{localStorage.setItem("orbit-theme-v1",theme)}catch{}},[theme]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -186,6 +188,13 @@ function App() {
         const data: { status?: string; service?: string } = await response.json();
         if (data.status !== "ok" || data.service !== "orbit-api") throw new Error("Unexpected API response");
         if (active) setApiState("online");
+        try {
+          const versionResponse = await fetch(`${API_BASE_URL}/version`);
+          if (versionResponse.ok) {
+            const versionData: ApiVersion = await versionResponse.json();
+            if (active) setApiVersion(versionData);
+          }
+        } catch { /* Version metadata is optional; health status remains authoritative. */ }
       } catch {
         if (active) setApiState("offline");
       }
@@ -370,6 +379,7 @@ function App() {
     online: "Backend connected · API operational",
     offline: "Backend connection unavailable",
   }[apiState];
+  const displayedStatusLabel=apiState==="online"&&apiVersion?.commit&&apiVersion.commit!=="unknown"?`${statusLabel} · ${apiVersion.commit.slice(0,7)}`:statusLabel;
 
   function toggleFolder(folder: string) {
     setCollapsedFolders((current) => current.includes(folder)
@@ -388,7 +398,7 @@ function App() {
         <p className="eyebrow">YOUR CODEBASE, UNDERSTOOD</p>
         <h1>See the structure<br />behind your software.</h1>
         <p className="intro">Understand architecture, inspect code structure, spot maintenance risks, and track how projects evolve — without executing uploaded code.</p>
-        <div className={`status status-${apiState}`} role="status" aria-live="polite"><span className="status-dot" />{statusLabel}</div>
+        <div className={`status status-${apiState}`} role="status" aria-live="polite"><span className="status-dot" />{displayedStatusLabel}</div>
       </section>
 
       <section className="analyzer-card" aria-labelledby="analyzer-title">
