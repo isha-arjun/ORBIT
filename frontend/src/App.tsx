@@ -200,8 +200,28 @@ function App() {
 
   function exportReport(){
     if(!analysis)return;
-    const report={generated_at:new Date().toISOString(),product:"ORBIT Developer Intelligence",project:analysis.project_name,summary:analysis.summary,languages:analysis.languages,code_insights:analysis.code_insights?.summary||null,dependency_summary:analysis.code_insights?.dependency_graph?.summary||null,findings:allFindings.map(item=>({...item,resolved:resolvedIssues.includes(item.id)})),notes:["Static best-effort analysis only.","Uploaded code was not executed.","This report is not a security audit."]};
-    const blob=new Blob([JSON.stringify(report,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const anchor=document.createElement("a");anchor.href=url;anchor.download=`${analysis.project_name.replace(/[^a-z0-9-_]+/gi,"-")}-orbit-report.json`;anchor.click();URL.revokeObjectURL(url);
+    const report={
+      schema_version:"1.1",
+      generated_at:new Date().toISOString(),
+      product:"ORBIT Developer Intelligence",
+      project:analysis.project_name,
+      health:{score:structureScore,review_flags:healthFindings.filter(item=>item.severity==="medium").length,observations:healthFindings.filter(item=>item.severity==="info").length,interpretation:"Heuristic structural indicator, not a quality or security grade."},
+      summary:analysis.summary,
+      languages:analysis.languages,
+      inventory:{folders:analysis.folders,files:analysis.files.map(file=>({path:file.path,language:file.language,size_bytes:file.size_bytes,extension:file.extension}))},
+      code_insights:analysis.code_insights?{summary:analysis.code_insights.summary,supported_languages:analysis.code_insights.supported_languages,files:analysis.code_insights.files,dependency_graph:analysis.code_insights.dependency_graph||null,maintenance_findings:analysis.code_insights.maintenance_findings||[]}:null,
+      findings:allFindings.map(item=>({...item,resolved:resolvedIssues.includes(item.id)})),
+      notes:["Static best-effort analysis only.","Uploaded code was not executed.","This report is not a security audit.","Symbol detection and dependency mapping are heuristic and may be incomplete."]
+    };
+    const blob=new Blob([JSON.stringify(report,null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const anchor=document.createElement("a");
+    anchor.href=url;
+    anchor.download=`${analysis.project_name.replace(/[^a-z0-9-_]+/gi,"-")}-orbit-report.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
 
   const folderItems = useMemo(() => {
