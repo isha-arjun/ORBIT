@@ -1,4 +1,5 @@
 import unittest
+import hashlib
 from pathlib import PurePosixPath
 
 from backend.app.main import (
@@ -77,6 +78,15 @@ class LanguageAndParserTests(unittest.TestCase):
     def test_binary_source_is_skipped(self):
         result = _analyze_source(PurePosixPath("main.py"), b"\xff\xfe\x00")
         self.assertEqual(result["status"], "skipped_binary")
+
+
+class ContentFingerprintTests(unittest.TestCase):
+    def test_sha256_fingerprint_is_stable_and_changes_with_content(self):
+        original = b"def greet(): return 1\n"
+        same = b"def greet(): return 1\n"
+        changed = b"def greet(): return 2\n"
+        self.assertEqual(hashlib.sha256(original).hexdigest(), hashlib.sha256(same).hexdigest())
+        self.assertNotEqual(hashlib.sha256(original).hexdigest(), hashlib.sha256(changed).hexdigest())
 
 
 class DependencyAndFindingTests(unittest.TestCase):
