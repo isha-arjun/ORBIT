@@ -1,6 +1,10 @@
 import unittest
+from io import BytesIO
+import zipfile
 from unittest.mock import patch
 from pathlib import PurePosixPath
+
+from fastapi import UploadFile
 
 from backend.app.main import (
     _analyze_source,
@@ -15,6 +19,7 @@ from backend.app.main import (
     _resolve_js_dependency,
     _safe_archive_path,
     version_info,
+    analyze_upload,
 )
 
 
@@ -106,6 +111,25 @@ class ContentFingerprintTests(unittest.TestCase):
         self.assertEqual(_content_fingerprint(original), _content_fingerprint(same))
         self.assertNotEqual(_content_fingerprint(original), _content_fingerprint(changed))
         self.assertEqual(len(_content_fingerprint(original)), 64)
+
+
+
+class UploadFingerprintIntegrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_upload_returns_fingerprints_for_supported_source_without_source_text(self):
+        archive_bytes = BytesIO()
+        source_text = "def private_example(): return 'not returned'\n"
+        with zipfile.ZipFile(archive_bytes, "w") as archive:
+            archive.writestr("sample/main.py", source_text)
+            archive.writestr("sample/logo.png", b"fake-image-bytes")
+
+        upload = UploadFile(file=BytesIO(archive_bytes.getvalue()), filename="sample.zip")
+        result = await analyze_upload(upload)
+        files = {item["path"]: item for item in result["files"]}
+
+        self.assertEqual(len(files["sample/main.py"]["content_sha256"]), 64)
+        self.assertNotIn("content_sha256", files["sample/logo.png"])
+        self.assertNotIn(source_text, repr(result))
+        self.assertNotIn("not returned", repr(result))
 
 
 class DependencyAndFindingTests(unittest.TestCase):
