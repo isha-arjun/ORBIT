@@ -137,15 +137,21 @@ function App() {
     }
     const owner = parts[0];
     const repository = parts[1].toLowerCase().endsWith(".git") ? parts[1].slice(0,-4) : parts[1];
-    setError(""); setIsImportingRepo(true);
+    setError(""); setIsImportingRepo(true); setAnalysis(null);
     try {
-      const response = await fetch(`https://api.github.com/repos/${owner}/${repository}/zipball`, { headers: { Accept: "application/vnd.github+json" } });
-      if (!response.ok) throw new Error(response.status === 404 ? "Repository not found or not public." : `GitHub returned ${response.status}. Try uploading a ZIP instead.`);
-      const blob = await response.blob();
-      if (blob.size > MAX_UPLOAD_BYTES) throw new Error("This repository archive exceeds ORBIT's 50 MB upload limit.");
-      await analyzeUpload(new File([blob], `${repository}.zip`, { type: "application/zip" }));
-    } catch (err) { setError(err instanceof Error ? err.message : "Could not import that GitHub repository."); }
-    finally { setIsImportingRepo(false); }
+      const response = await fetch(`${API_BASE_URL}/analyze/github`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ owner, repository }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || `Repository import failed (HTTP ${response.status}).`);
+      const result = data as AnalysisResult;
+      setAnalysis(result); setSelectedFile(result.files[0] || null);
+      setSearchQuery(""); setLanguageFilter("All languages"); setSelectedFolder("All files"); setCollapsedFolders([]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not import that GitHub repository.");
+    } finally { setIsImportingRepo(false); }
   }
 
   function saveCurrentSnapshot(){
